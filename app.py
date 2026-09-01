@@ -10,7 +10,7 @@ from streamlit_drawable_canvas import st_canvas
 # 1. 페이지 기본 설정 및 태블릿 맞춤형 CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="🎨 AI 캐치마인드",
+    page_title="🎨 AI 진짜 캐치마인드",
     page_icon="🎨",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -77,7 +77,7 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
-# 3. 헬퍼 함수 정의 (직선 완벽 차단 판정 엔진)
+# 3. 헬퍼 함수 정의 (초엄격 Gemini AI 비전 판정 엔진)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -91,63 +91,51 @@ def load_keywords():
         st.error("⚠️ 'keyword.csv' 파일이 필요합니다!")
         return None
 
-def evaluate_drawing(pil_image, keyword):
+def ask_gemini_vision(pil_image, keyword, category):
     """
-    픽셀 수, 크기 분산뿐만 아니라 상관계수(직선 판별)를 이용해 
-    대각선이나 일직선 형태의 낙서를 완벽하게 차단합니다.
+    단순한 도형(동그라미, 선 등)을 정답으로 인정하지 않고, 
+    해당 제시어의 구체적인 특징이 제대로 그려졌는지 엄격하게 심사합니다.
     """
-    import numpy as np
-    
-    if pil_image.mode == 'RGBA':
-        background = Image.new("RGB", pil_image.size, (255, 255, 255))
-        background.paste(pil_image, mask=pil_image.split()[3])
-        img_rgb = background
-    else:
-        img_rgb = pil_image.convert('RGB')
+    api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return "API 키 설정 필요 (Secrets 확인)"
 
-    img_array = np.array(img_rgb)
-    drawn_mask = np.any(img_array < 245, axis=-1)
-    pixel_coords = np.argwhere(drawn_mask)
-    
-    total_pixels = len(pixel_coords)
-    
-    # 1단계: 최소 픽셀 수 검사
-    if total_pixels < 800:
-        return False, "그림이 너무 적습니다! (모양을 갖추어 그려주세요)"
-    
-    y_coords = pixel_coords[:, 0]
-    x_coords = pixel_coords[:, 1]
-    
-    height_spread = np.max(y_coords) - np.min(y_coords)
-    width_spread = np.max(x_coords) - np.min(x_coords)
-    
-    # 2단계: 크기 분산 검사
-    if height_spread < 50 or width_spread < 50:
-        return False, "단순한 선은 정답으로 인정되지 않습니다!"
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key.strip())
+        
+        prompt = (
+            f"당신은 캐치마인드 게임의 아주 까다롭고 엄격한 심사위원입니다.\n"
+            f"카테고리: '{category}' / 정답 제시어: '{keyword}'\n\n"
+            f"사용자가 그린 그림을 매우 엄격하게 평가해주세요.\n"
+            f"1. 단순한 동그라미, 선, 낙서, 대충 형태만 흉내 낸 것은 절대 정답으로 인정하지 마세요.\n"
+            f"2. 제시어('{keyword}') 특유의 디테일(예: 사과라면 꼭지나 잎사귀, 동물이라면 귀나 다리 등)이 recognizable(인식 가능할 정도)하게 그려져 있어야만 정답으로 취급합니다.\n"
+            f"3. 그림이 너무 성의 없거나 단순한 도형이면 정답 제시어 대신 '단순 도형' 또는 AI가 실제로 본 사물의 이름을 단어로 답하세요.\n"
+            f"4. 오직 추론한 '단어' 하나만 정확하게 답변해 주세요. (예: 사과, 동그라미 등)"
+        )
 
-    # 3단계: 직선(대각선 포함) 판별 알고리즘 (상관계수 분석)
-    if len(x_coords) > 1:
-        x_std = np.std(x_coords)
-        y_std = np.std(y_coords)
-        if x_std > 0 and y_std > 0:
-            correlation = np.corrcoef(x_coords, y_coords)[0, 1]
-            # 상관계수 절대값이 높다는 것은 점들이 일직선으로 배열되어 있음을 의미
-            if abs(correlation) > 0.90:
-                return False, "직선이나 대각선은 정답이 될 수 없어요! 도형을 그려주세요."
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[pil_image, prompt]
+        )
+        if response and response.text:
+            return response.text.strip()
+    except Exception as e:
+        return "통신 오류 발생"
 
-    return True, keyword
+    return "판정 불가"
 
 # -----------------------------------------------------------------------------
 # 4. 화면 1: 시작 화면
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
-    st.markdown("<div class='big-title'>🎨 AI 캐치마인드 (안정 모드)</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>직선 완벽 차단 엔진이 적용된 캐치마인드!</div>", unsafe_allow_html=True)
+    st.markdown("<div class='big-title'>🎨 AI 엄격한 캐치마인드</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>대충 그린 동그라미나 선은 절대 통과되지 않습니다!</div>", unsafe_allow_html=True)
 
     with st.expander("📖 **게임 방법 및 규칙 안내**", expanded=True):
         st.markdown("""
-        1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 그림으로 표현하세요.
-        2. **주의:** 가로/세로/대각선 등 단순한 직선은 무조건 오답 처리됩니다. **모양과 형태**를 갖추어 그려주세요!
+        1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 구체적으로 그림으로 표현하세요.
+        2. **주의:** 단순한 동그라미나 대충 그은 선은 AI 심사위원이 오답 처리합니다. **특징을 살려** 제대로 그려주세요!
         3. **패스 기능:** 그림을 그리기 어렵다면 한 게임당 최대 **2회**까지 패스할 수 있습니다.
         """)
 
@@ -250,16 +238,18 @@ elif st.session_state.page == 'game':
     )
 
     def process_submission(image_data):
-        with st.spinner("🤖 AI 판정 엔진이 그림을 분석 중입니다..."):
-            time.sleep(0.8)
-            pil_img = Image.fromarray(image_data.astype('uint8'))
-            is_correct, ai_ans = evaluate_drawing(pil_img, keyword)
+        with st.spinner("🤖 AI 심사위원이 그림을 엄격하게 채점 중입니다..."):
+            pil_img = Image.fromarray(image_data.astype('uint8')).convert('RGB')
+            ai_ans = ask_gemini_vision(pil_img, keyword, category)
+            
+            # AI의 답변에 정답 키워드가 정확히 포함되어 있는지 확인
+            is_correct = (keyword.strip() in ai_ans.strip())
 
             result_data = {
                 'round': solved_q + 1,
                 'keyword': keyword,
                 'image': pil_img,
-                'ai_response': ai_ans if is_correct else "직선 형태 감지됨 (오답)",
+                'ai_response': ai_ans,
                 'is_correct': is_correct
             }
 
@@ -314,14 +304,14 @@ elif st.session_state.page == 'intermediate':
     with col_info:
         st.write("")
         if res['is_correct']:
-            st.success("🎉 **정답입니다!** 훌륭한 그림이네요!")
+            st.success("🎉 **정답입니다!** AI 심사위원이 인정한 멋진 그림이네요!")
         else:
-            st.error("❌ **오답입니다!** 직선이나 단조로운 선은 인정되지 않습니다.")
+            st.error("❌ **오답입니다!** 대충 그린 도형이나 선으로는 AI를 속일 수 없어요.")
 
         st.markdown(f"""
         <div class="result-text-big" style="background-color: #F8F9FA; padding: 20px; border-radius: 12px; margin-top: 10px;">
-            • 🎯 <b>정답 (제시어):</b> <span style="color: #1565C0;">{res['keyword']}</span><br>
-            • 🤖 <b>판정 결과:</b> <span style="color: #D32F2F;">{res['ai_response']}</span>
+            • 🎯 <b>제시어:</b> <span style="color: #1565C0;">{res['keyword']}</span><br>
+            • 🤖 <b>AI 심사위원 판정:</b> <span style="color: #D32F2F;">{res['ai_response']}</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -370,8 +360,8 @@ elif st.session_state.page == 'result':
             with r_col2:
                 st.markdown(f"""
                 <div class="result-text-big">
-                    • 🎯 <b>정답:</b> <span style="color: #1565C0;">{item['keyword']}</span><br>
-                    • 🤖 <b>판정 결과:</b> <span style="color: #D32F2F;">{item['ai_response']}</span>
+                    • 🎯 <b>제시어:</b> <span style="color: #1565C0;">{item['keyword']}</span><br>
+                    • 🤖 <b>AI 심사위원 판정:</b> <span style="color: #D32F2F;">{item['ai_response']}</span>
                 </div>
                 """, unsafe_allow_html=True)
             st.divider()
