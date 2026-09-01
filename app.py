@@ -92,22 +92,6 @@ def load_keywords():
         st.error("⚠️ 'keyword.csv' 파일이 필요합니다!")
         return None
 
-def get_working_model():
-    """현재 API 키로 사용 가능한 모델을 동적으로 탐색"""
-    try:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                # 'flash'가 포함된 모델 우선 선택
-                if 'flash' in m.name.lower():
-                    return m.name
-        # flash가 없으면 지원되는 첫 번째 모델 반환
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                return m.name
-    except Exception:
-        pass
-    return 'gemini-1.5-flash' # 기본값 예외처리
-
 def ask_gemini(pil_image, category):
     api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -116,10 +100,20 @@ def ask_gemini(pil_image, category):
     try:
         genai.configure(api_key=api_key.strip())
         
-        # 사용 가능한 모델을 자동으로 찾아 가져옴
-        model_name = get_working_model()
-        model = genai.GenerativeModel(model_name)
+        # 최신 안정 모델 고정 사용 (gemini-2.5-flash)
+        model_candidates = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-1.5-flash']
         
+        model = None
+        for m_name in model_candidates:
+            try:
+                model = genai.GenerativeModel(m_name)
+                break
+            except Exception:
+                continue
+                
+        if not model:
+            model = genai.GenerativeModel('gemini-2.5-flash')
+
         prompt = (
             f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
             f"사용자가 그린 그림의 전체적인 '형태'와 '윤곽'에 집중해서 무엇을 그린 것인지 정답을 추론해 주세요.\n"
