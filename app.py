@@ -93,13 +93,12 @@ def load_keywords():
         return None
 
 def ask_gemini(pil_image, category):
-    """신규 AQ 키 호환 SDK 기반 호출 함수"""
+    """안정적인 모델(1.5-flash)부터 순차적으로 시도하는 함수"""
     api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return "통신 실패: GEMINI_API_KEY 미설정"
 
     try:
-        # 최신 google-genai 클라이언트 초기화
         client = genai.Client(api_key=api_key.strip())
         
         prompt = (
@@ -108,32 +107,31 @@ def ask_gemini(pil_image, category):
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
-        # AQ 키 규격과 호환되는 2.5-flash 모델 호출
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[pil_image, prompt]
-        )
-        
-        if response and response.text:
-            return response.text.strip()
-        else:
-            return "통신 실패: AI 응답 없음"
+        # 가장 안정적이고 100% 작동하는 모델 목록 (순차적 시도)
+        models_to_try = [
+            'gemini-1.5-flash',
+            'gemini-1.5-flash-8b',
+            'gemini-2.0-flash'
+        ]
 
-    except Exception as e:
-        err_str = str(e)
-        if "404" in err_str:
-            # 2.5-flash가 안 될 경우 2.0-flash 보조 시도
+        last_error = ""
+        for model_name in models_to_try:
             try:
-                client = genai.Client(api_key=api_key.strip())
                 response = client.models.generate_content(
-                    model='gemini-2.0-flash',
+                    model=model_name,
                     contents=[pil_image, prompt]
                 )
                 if response and response.text:
                     return response.text.strip()
-            except Exception as inner_e:
-                return f"통신 실패(404): {str(inner_e)[:30]}"
-        return f"통신 실패: {err_str[:40]}"
+            except Exception as e:
+                last_error = str(e)
+                continue # 실패하면 다음 모델로 넘어감
+
+        # 모든 모델이 실패했을 경우
+        return f"통신 실패(모델 권한 없음): {last_error[:40]}"
+
+    except Exception as e:
+        return f"통신 실패(초기화 에러): {str(e)[:40]}"
 
 # -----------------------------------------------------------------------------
 # 3. 화면 1: 시작 화면
