@@ -99,14 +99,13 @@ def load_keywords():
         return None
 
 def ask_gemini(pil_image, category):
-    """Gemini Flash 모델 호출 및 오류 감지"""
+    """Gemini 모델 다중 호환 호출 (자동 모델 탐색 지원)"""
     # 1. API 키 확인
     api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return "통신 실패: API 키 미설정"
 
     try:
-        # 2. Gemini 클라이언트 생성
         client = genai.Client(api_key=api_key)
         
         prompt = (
@@ -115,21 +114,43 @@ def ask_gemini(pil_image, category):
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
-        # 3. 모델 호출 ('gemini-2.0-flash' 호환 모델로 변경)
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=[pil_image, prompt]
-        )
-        return response.text.strip()
+        # 2. 계정/SDK 호환성을 위해 지원 가능한 후보 모델명을 순차적으로 실행
+        candidate_models = [
+            'gemini-2.5-flash',
+            'models/gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'models/gemini-2.0-flash'
+        ]
+
+        last_error = None
+        for model_name in candidate_models:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[pil_image, prompt]
+                )
+                if response and response.text:
+                    return response.text.strip()
+            except Exception as e:
+                last_error = e
+                # 404인 경우 다음 모델 후보로 진행
+                if "404" in str(e):
+                    continue
+                else:
+                    raise e
+
+        # 모든 후보 모델이 실패한 경우 마지막 에러 메시지 출력
+        if last_error:
+            raise last_error
+
     except Exception as e:
-        # 오류 발생 시 구체적인 메시지 리턴
         err_msg = str(e)
         if "403" in err_msg or "API_KEY" in err_msg:
             return "통신 실패: API 키 오류"
         elif "429" in err_msg:
             return "통신 실패: 사용량 초과"
         elif "404" in err_msg:
-            return "통신 실패: 모델명을 찾을 수 없음"
+            return "통신 실패: 지원 모델 없음(Google AI Studio 키 확인 필요)"
         else:
             return f"통신 실패 ({err_msg[:30]})"
 
