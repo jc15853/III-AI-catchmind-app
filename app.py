@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="정보 교과: 추상화 게임",
     page_icon="🧩",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 st.markdown(
@@ -80,6 +80,20 @@ if "last_result" not in st.session_state:
   st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
+# 공통 사이드바 (첫 화면으로 이동 기능 제공)
+# -----------------------------------------------------------------------------
+with st.sidebar:
+  st.markdown("### 🧩 정보 교과 메뉴")
+  if st.button("🏠 처음 화면으로 가기", key="sidebar_home_btn"):
+    st.session_state.page = "start"
+    st.session_state.category = None
+    st.session_state.history = []
+    st.session_state.last_result = None
+    st.rerun()
+  st.divider()
+  st.caption("중1 정보 [2. 문제해결과 프로그래밍]")
+
+# -----------------------------------------------------------------------------
 # 키워드 CSV 로드 및 AI 심사 헬퍼 함수
 # -----------------------------------------------------------------------------
 @st.cache_data
@@ -107,14 +121,12 @@ def ask_gemini_vision(pil_image, keyword, category):
 
     client = genai.Client(api_key=api_key.strip())
 
+    # 피드백 문구를 간결하게 유도하도록 프롬프트 수정
     prompt = (
         f"당신은 정보 교과(컴퓨팅 사고력)의 '추상화(Abstraction)' 개념을 평가하는 AI 심사위원입니다.\n"
         f"카테고리: '{category}' / 목표 개념(제시어): '{keyword}'\n\n"
-        f"추상화란 복잡한 문제나 사물에서 불필요한 세부사항을 숨기고 대상의 '핵심적인 특징'만을 추출하여 표현하는 과정입니다.\n"
-        f"사용자가 그린 그림을 정보과학적 추상화 관점에서 평가해주세요:\n"
-        f"1. 이 그림이 대상('{keyword}')의 핵심 특징(중요 속성)을 얼마나 단순하고 명확하게 잘 추출했는지 분석하세요.\n"
-        f"2. 세부 묘사가 부족하더라도 핵심 특징이 담겨 있다면 훌륭한 추상화로 인정해 주세요.\n"
-        f"3. 분석 결과 도출된 핵심 개념이 '{keyword}'와 일치하는지 판정하고, 어떤 핵심 특징을 추출해 표현했는지 설명과 함께 정답 제시어('{keyword}')를 반드시 답변에 포함해 주세요."
+        f"사용자가 그린 그림이 제시어('{keyword}')의 핵심 특징을 담고 있는지 간결하게 평가해주세요.\n"
+        f"장점과 보완점 같은 길고 복잡한 분석 형태는 제외하고, 어떤 특징이 표현되었는지 핵심 내용 위주로 한두 문장으로 짧게 설명한 뒤 정답 제시어('{keyword}')를 포함하여 답변해 주세요."
     )
 
     response = client.models.generate_content(
@@ -322,7 +334,6 @@ elif st.session_state.page == "game":
 # 3. 화면 3: 중간 평가 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "intermediate":
-  # KeyError 방지를 위한 안전한 get 처리
   res = st.session_state.last_result
   if res is None:
     st.session_state.page = "start"
@@ -353,7 +364,7 @@ elif st.session_state.page == "intermediate":
         f"""
         <div class="result-text-big" style="background-color: #E0F2F1; padding: 20px; border-radius: 12px; margin-top: 10px; border-left: 6px solid #00838F;">
             • 목표 제시어: <span style="color: #00838F;"><b>{kw}</b></span><br><br>
-            • <b>AI 추상화 분석 리포트:</b><br>
+            • <b>AI 분석 결과:</b><br>
             <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{ai_res}</span>
         </div>
         """,
@@ -416,7 +427,7 @@ elif st.session_state.page == "result":
         st.markdown(
             f"""
                 <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
-                    <b>🔍 추상화 분석 피드백:</b><br>
+                    <b>🔍 AI 분석 피드백:</b><br>
                     {item.get('ai_response', '')}
                 </div>
                 """,
