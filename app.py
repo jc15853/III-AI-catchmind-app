@@ -10,7 +10,7 @@ from streamlit_drawable_canvas import st_canvas
 # 1. 페이지 기본 설정 및 태블릿 맞춤형 CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="🎨 AI 진짜 캐치마인드",
+    page_title="AI 캐치마인드",
     page_icon="🎨",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -77,7 +77,7 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
-# 3. 헬퍼 함수 정의 (초엄격 Gemini AI 비전 판정 엔진)
+# 3. 헬퍼 함수 정의
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -92,10 +92,6 @@ def load_keywords():
         return None
 
 def ask_gemini_vision(pil_image, keyword, category):
-    """
-    단순한 도형(동그라미, 선 등)을 정답으로 인정하지 않고, 
-    해당 제시어의 구체적인 특징이 제대로 그려졌는지 엄격하게 심사합니다.
-    """
     api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return "API 키 설정 필요 (Secrets 확인)"
@@ -105,13 +101,11 @@ def ask_gemini_vision(pil_image, keyword, category):
         client = genai.Client(api_key=api_key.strip())
         
         prompt = (
-            f"당신은 캐치마인드 게임의 아주 까다롭고 엄격한 심사위원입니다.\n"
+            f"당신은 캐치마인드 게임의 AI 심사위원입니다.\n"
             f"카테고리: '{category}' / 정답 제시어: '{keyword}'\n\n"
-            f"사용자가 그린 그림을 매우 엄격하게 평가해주세요.\n"
-            f"1. 단순한 동그라미, 선, 낙서, 대충 형태만 흉내 낸 것은 절대 정답으로 인정하지 마세요.\n"
-            f"2. 제시어('{keyword}') 특유의 디테일(예: 사과라면 꼭지나 잎사귀, 동물이라면 귀나 다리 등)이 recognizable(인식 가능할 정도)하게 그려져 있어야만 정답으로 취급합니다.\n"
-            f"3. 그림이 너무 성의 없거나 단순한 도형이면 정답 제시어 대신 '단순 도형' 또는 AI가 실제로 본 사물의 이름을 단어로 답하세요.\n"
-            f"4. 오직 추론한 '단어' 하나만 정확하게 답변해 주세요. (예: 사과, 동그라미 등)"
+            f"사용자가 그린 그림을 평가해주세요.\n"
+            f"1. 제시어('{keyword}')와 연관성이 있는지 확인하세요.\n"
+            f"2. 추론한 단어를 정확하게 답변해 주세요. (예: 사과)"
         )
 
         response = client.models.generate_content(
@@ -129,24 +123,24 @@ def ask_gemini_vision(pil_image, keyword, category):
 # 4. 화면 1: 시작 화면
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
-    st.markdown("<div class='big-title'>🎨 AI 엄격한 캐치마인드</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>대충 그린 동그라미나 선은 절대 통과되지 않습니다!</div>", unsafe_allow_html=True)
+    st.markdown("<div class='big-title'>AI 캐치마인드</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>제시어를 보고 그림을 그려보세요.</div>", unsafe_allow_html=True)
 
-    with st.expander("📖 **게임 방법 및 규칙 안내**", expanded=True):
+    with st.expander("게임 방법 안내", expanded=True):
         st.markdown("""
-        1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 구체적으로 그림으로 표현하세요.
-        2. **주의:** 단순한 동그라미나 대충 그은 선은 AI 심사위원이 오답 처리합니다. **특징을 살려** 제대로 그려주세요!
-        3. **패스 기능:** 그림을 그리기 어렵다면 한 게임당 최대 **2회**까지 패스할 수 있습니다.
+        1. 제한 시간(60초) 동안 제시어에 맞는 그림을 그립니다.
+        2. 제출하기 버튼을 누르면 AI가 그림을 심사합니다.
+        3. 게임당 최대 2회까지 패스할 수 있습니다.
         """)
 
     st.write("")
     df_keywords = load_keywords()
     
     if df_keywords is not None:
-        st.write("### ⚙️ 1. 도전할 문항 수")
+        st.write("### 1. 문항 수 선택")
         target_q = st.select_slider("문항 수 선택:", options=[3, 5, 7, 10], value=5, label_visibility="collapsed")
         
-        st.write("### 📌 2. 카테고리 선택하여 시작")
+        st.write("### 2. 카테고리 선택")
         categories = ["동물", "과일", "채소", "사물", "교통수단"]
         cols = st.columns(5)
         
@@ -187,13 +181,13 @@ elif st.session_state.page == 'game':
 
     col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
-        st.markdown(f"#### 🎯 문제 **{solved_q + 1} / {target_q}**")
-        st.caption(f"🎟️ 패스 남은 횟수: {2 - pass_used}회")
+        st.markdown(f"#### 문제 **{solved_q + 1} / {target_q}**")
+        st.caption(f"패스: {2 - pass_used}회 남음")
     with col2:
         st.markdown(f"<h3 style='text-align: center; color: #D32F2F;'>제시어: <b>[{keyword}]</b></h3>", unsafe_allow_html=True)
     with col3:
         timer_color = "red" if remaining_time <= 10 else "#333333"
-        st.markdown(f"<h4 style='text-align: right; color: {timer_color};'>⏱️ {remaining_time}초</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='text-align: right; color: {timer_color};'>{remaining_time}초</h4>", unsafe_allow_html=True)
 
     st.write("")
 
@@ -238,11 +232,10 @@ elif st.session_state.page == 'game':
     )
 
     def process_submission(image_data):
-        with st.spinner("🤖 AI 심사위원이 그림을 엄격하게 채점 중입니다..."):
+        with st.spinner("AI 심사 중..."):
             pil_img = Image.fromarray(image_data.astype('uint8')).convert('RGB')
             ai_ans = ask_gemini_vision(pil_img, keyword, category)
             
-            # AI의 답변에 정답 키워드가 정확히 포함되어 있는지 확인
             is_correct = (keyword.strip() in ai_ans.strip())
 
             result_data = {
@@ -271,7 +264,7 @@ elif st.session_state.page == 'game':
     btn_col1, btn_col2 = st.columns([1, 1])
 
     with btn_col1:
-        if st.button("🚀 제출하기", key="btn_submit"):
+        if st.button("제출하기", key="btn_submit"):
             if canvas_result.image_data is not None:
                 process_submission(canvas_result.image_data)
             else:
@@ -279,11 +272,11 @@ elif st.session_state.page == 'game':
 
     with btn_col2:
         pass_disabled = (pass_used >= 2)
-        if st.button(f"⏩ 패스하기 ({pass_used}/2회 사용)", key="btn_pass", disabled=pass_disabled):
+        if st.button(f"패스하기 ({pass_used}/2회 사용)", key="btn_pass", disabled=pass_disabled):
             process_pass()
 
     if is_time_over:
-        st.error("⏰ 시간이 종료되었습니다! 제출하기를 눌러주세요.")
+        st.error("시간이 종료되었습니다. 제출하기를 눌러주세요.")
 
     if not is_time_over:
         time.sleep(1)
@@ -294,7 +287,7 @@ elif st.session_state.page == 'game':
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'intermediate':
     res = st.session_state.last_result
-    st.markdown(f"### 📍 문제 {res['round']} 결과 확인")
+    st.markdown(f"### 문제 {res['round']} 결과")
     
     col_img, col_info = st.columns([1, 1.2])
     
@@ -304,14 +297,14 @@ elif st.session_state.page == 'intermediate':
     with col_info:
         st.write("")
         if res['is_correct']:
-            st.success("🎉 **정답입니다!** AI 심사위원이 인정한 멋진 그림이네요!")
+            st.success("정답입니다!")
         else:
-            st.error("❌ **오답입니다!** 대충 그린 도형이나 선으로는 AI를 속일 수 없어요.")
+            st.error("오답입니다.")
 
         st.markdown(f"""
         <div class="result-text-big" style="background-color: #F8F9FA; padding: 20px; border-radius: 12px; margin-top: 10px;">
-            • 🎯 <b>제시어:</b> <span style="color: #1565C0;">{res['keyword']}</span><br>
-            • 🤖 <b>AI 심사위원 판정:</b> <span style="color: #D32F2F;">{res['ai_response']}</span>
+            • 제시어: <span style="color: #1565C0;">{res['keyword']}</span><br>
+            • AI 판정: <span style="color: #D32F2F;">{res['ai_response']}</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -319,11 +312,11 @@ elif st.session_state.page == 'intermediate':
         st.write("")
         
         if st.session_state.solved_count >= st.session_state.total_target_questions:
-            if st.button("🏆 최종 결과 보기"):
+            if st.button("최종 결과 보기"):
                 st.session_state.page = 'result'
                 st.rerun()
         else:
-            if st.button("➡️ 다음 문제로 넘어가기"):
+            if st.button("다음 문제"):
                 st.session_state.start_time = time.time()
                 st.session_state.page = 'game'
                 st.rerun()
@@ -332,23 +325,23 @@ elif st.session_state.page == 'intermediate':
 # 7. 화면 4: 최종 결과 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'result':
-    st.markdown("<div class='big-title'>🎉 게임 종료! 최종 결과 보고서</div>", unsafe_allow_html=True)
+    st.markdown("<div class='big-title'>게임 결과</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='sub-title'>카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>", unsafe_allow_html=True)
 
     correct_cnt = sum(1 for item in st.session_state.history if item.get('is_correct', False))
-    st.metric("총 맞힌 문제 수", f"{correct_cnt} / {st.session_state.total_target_questions} 문제")
+    st.metric("맞힌 문제 수", f"{correct_cnt} / {st.session_state.total_target_questions} 문제")
     st.divider()
 
     for item in st.session_state.history:
         is_correct = item['is_correct']
         bg_color = "#E8F5E9" if is_correct else "#FFEBEE"
         border_color = "#4CAF50" if is_correct else "#EF5350"
-        status_badge = "🟢 **[정답]**" if is_correct else "🔴 **[오답]**"
+        status_badge = "[정답]" if is_correct else "[오답]"
 
         with st.container():
             st.markdown(f"""
             <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
-                <h4>📍 문제 {item['round']} {status_badge}</h4>
+                <h4>문제 {item['round']} {status_badge}</h4>
             </div>
             """, unsafe_allow_html=True)
 
@@ -360,13 +353,13 @@ elif st.session_state.page == 'result':
             with r_col2:
                 st.markdown(f"""
                 <div class="result-text-big">
-                    • 🎯 <b>제시어:</b> <span style="color: #1565C0;">{item['keyword']}</span><br>
-                    • 🤖 <b>AI 심사위원 판정:</b> <span style="color: #D32F2F;">{item['ai_response']}</span>
+                    • 제시어: <span style="color: #1565C0;">{item['keyword']}</span><br>
+                    • AI 판정: <span style="color: #D32F2F;">{item['ai_response']}</span>
                 </div>
                 """, unsafe_allow_html=True)
             st.divider()
 
-    if st.button("🔄 다시 게임하기", key="btn_restart"):
+    if st.button("다시 하기", key="btn_restart"):
         st.session_state.page = 'start'
         st.session_state.category = None
         st.session_state.history = []
