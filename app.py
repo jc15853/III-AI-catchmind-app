@@ -8,7 +8,15 @@ from google import genai
 from streamlit_drawable_canvas import st_canvas
 
 # -----------------------------------------------------------------------------
-# 0. 페이지 기본 설정 및 태블릿 맞춤형 CSS
+# 0. 구글 서비스 계정 인증 설정 (AQ. 키 오류 우회)
+# -----------------------------------------------------------------------------
+# GitHub에 업로드한 service_account.json 파일을 환경 변수에 연결합니다.
+json_path = "service_account.json"
+if os.path.exists(json_path):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json_path
+
+# -----------------------------------------------------------------------------
+# 1. 페이지 기본 설정 및 태블릿 맞춤형 CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="🎨 AI 캐치마인드",
@@ -52,7 +60,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 1. 세션 상태(Session State) 초기화
+# 2. 세션 상태(Session State) 초기화
 # -----------------------------------------------------------------------------
 if 'page' not in st.session_state:
     st.session_state.page = 'start'
@@ -78,7 +86,7 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
-# 2. 헬퍼 함수 정의
+# 3. 헬퍼 함수 정의
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -93,13 +101,13 @@ def load_keywords():
         return None
 
 def ask_gemini(pil_image, category):
-    """Vertex AI(AQ. 키) 호환 호출 방식"""
-    api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return "통신 실패: GEMINI_API_KEY 미설정"
+    """서비스 계정(JSON) 기반 Vertex AI 호출 함수"""
+    if not os.path.exists("service_account.json"):
+        return "통신 실패: service_account.json 파일 누락"
 
     try:
-        client = genai.Client(api_key=api_key.strip())
+        # Vertex AI 클라이언트 초기화 (프로젝트와 리전 설정 필요 시 추가 가능)
+        client = genai.Client()
         
         prompt = (
             f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
@@ -107,9 +115,8 @@ def ask_gemini(pil_image, category):
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
-        # Vertex AI 표준 모델명 지정 (AQ. 키 대응)
         response = client.models.generate_content(
-            model='publishers/google/models/gemini-1.5-flash',
+            model='gemini-1.5-flash',
             contents=[pil_image, prompt]
         )
         
@@ -122,7 +129,7 @@ def ask_gemini(pil_image, category):
         return f"통신 실패(Vertex): {str(e)[:45]}"
 
 # -----------------------------------------------------------------------------
-# 3. 화면 1: 시작 화면
+# 4. 화면 1: 시작 화면
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
     st.markdown("<div class='big-title'>🎨 AI 캐치마인드</div>", unsafe_allow_html=True)
@@ -168,7 +175,7 @@ if st.session_state.page == 'start':
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 4. 화면 2: 게임 화면
+# 5. 화면 2: 게임 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'game':
     pool_idx = st.session_state.current_pool_idx
@@ -285,7 +292,7 @@ elif st.session_state.page == 'game':
         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 5. 화면 3: 중간 채점 화면
+# 6. 화면 3: 중간 채점 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'intermediate':
     res = st.session_state.last_result
@@ -324,7 +331,7 @@ elif st.session_state.page == 'intermediate':
                 st.rerun()
 
 # -----------------------------------------------------------------------------
-# 6. 화면 4: 최종 결과 화면
+# 7. 화면 4: 최종 결과 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'result':
     st.markdown("<div class='big-title'>🎉 게임 종료! 최종 결과 보고서</div>", unsafe_allow_html=True)
