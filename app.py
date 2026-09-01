@@ -100,11 +100,10 @@ def ask_gemini_vision(pil_image, keyword, category):
         from google import genai
         client = genai.Client(api_key=api_key.strip())
         
-        # 💡 정보 교과 '추상화' 개념 적용 프롬프트
         prompt = (
             f"당신은 정보 교과(컴퓨팅 사고력)의 '추상화(Abstraction)' 개념을 평가하는 AI 심사위원입니다.\n"
             f"카테고리: '{category}' / 목표 개념(제시어): '{keyword}'\n\n"
-            f"추상화란 불필요한 세부사항을 숨기고 대상의 '핵심적인 특징'만을 추출하여 표현하는 과정입니다.\n"
+            f"추상화란 복잡한 문제나 사물에서 불필요한 세부사항을 숨기고 대상의 '핵심적인 특징'만을 추출하여 표현하는 과정입니다.\n"
             f"사용자가 그린 그림을 정보과학적 추상화 관점에서 평가해주세요:\n"
             f"1. 이 그림이 대상('{keyword}')의 핵심 특징(중요 속성)을 얼마나 단순하고 명확하게 잘 추출(추상화)했는지 분석하세요.\n"
             f"2. 세부 묘사가 부족하더라도 핵심 특징이 담겨 있다면 훌륭한 추상화 모델링으로 인정해 주세요.\n"
@@ -126,14 +125,15 @@ def ask_gemini_vision(pil_image, keyword, category):
 # 4. 화면 1: 시작 화면
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
-    st.markdown("<div class='big-title'>🧩 정보 교과: 추상화 캐치마인드</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>복잡한 대상에서 핵심 특징만 추출하여 모델링(추상화)해보세요!</div>", unsafe_allow_html=True)
+    st.markdown("<div class='big-title'>🧩 AI 추상화 모델링 챌린지</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>복잡한 대상에서 핵심 특징만 추출하는 컴퓨팅 사고력 학습기</div>", unsafe_allow_html=True)
 
-    with st.expander("📖 정보과학적 '추상화' 학습 안내", expanded=True):
+    with st.expander("📖 교육과정 학습 목표 안내", expanded=True):
         st.markdown("""
-        * **추상화(Abstraction)란?** 복잡한 문제나 사물에서 불필요한 디테일을 버리고, **핵심적인 공통 성질이나 특징만 추출**하는 컴퓨팅 사고력의 핵심 요소입니다.
-        * **게임 방법:** 제한 시간(60초) 동안 제시어의 **핵심 특징**만 골라 간결하게 그려보세요. 
-        * AI가 디테일 대신 대상을 대표하는 특징을 잘 추출했는지 **추상화 수준**을 심사합니다.
+        🤖 **정보 교과 [문제해결과 프로그래밍 - 추상화]**  
+        복잡한 사물이나 개념에서 불필요한 세부 요소는 숨기고, 본질적인 **핵심 특징**만 추출하여 모델링하는 능력을 기릅니다.
+        
+        💡 **학습 목표:** 제시된 대상의 핵심 속성이 무엇인지 파악하고, 디테일 대신 대상을 대표하는 특징만 간결하게 그려 모델링해 봅시다!
         """)
 
     st.write("")
