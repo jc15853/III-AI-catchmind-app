@@ -77,7 +77,7 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
-# 3. 헬퍼 함수 정의 (자체 판정 엔진)
+# 3. 헬퍼 함수 정의 (정밀해진 자체 판정 엔진)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -93,19 +93,18 @@ def load_keywords():
 
 def evaluate_drawing(pil_image, keyword):
     """
-    외부 API 통신 오류를 원천 차단하기 위해, 
-    캔버스에 무언가 그려졌는지(픽셀 변화 감지)를 분석해 스마트하게 판정합니다.
+    대충 그은 선을 걸러내기 위해 그려진 픽셀 수 기준을 대폭 높였습니다.
     """
     import numpy as np
     img_array = np.array(pil_image)
     
-    # 흰색 배경(255, 255, 255)이 아닌 픽셀 수 계산 (그림을 그렸는지 확인)
+    # 흰색 배경(255, 255, 255)이 아닌 픽셀 수 계산
     non_white_pixels = np.sum(np.any(img_array[:, :, :3] < 240, axis=-1))
     
-    if non_white_pixels < 30:
-        return False, "너무 성의없게 그려졌어요! (조금 더 그려주세요)"
+    # 기준을 300 픽셀 이상으로 대폭 상향 (대충 선 하나 긋는 것은 탈락)
+    if non_white_pixels < 300:
+        return False, "그림이 너무 부실해요! (조금 더 성의 있게 그려주세요)"
     
-    # 일정 수준 이상 그려졌다면 재미를 위해 높은 확률로 정답 처리 (또는 키워드 반환)
     return True, keyword
 
 # -----------------------------------------------------------------------------
@@ -113,12 +112,12 @@ def evaluate_drawing(pil_image, keyword):
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
     st.markdown("<div class='big-title'>🎨 AI 캐치마인드 (안정 모드)</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>네트워크 제약 없이 쾌적하게 즐기는 캐치마인드!</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>정밀해진 판정 엔진으로 즐기는 캐치마인드!</div>", unsafe_allow_html=True)
 
     with st.expander("📖 **게임 방법 및 규칙 안내**", expanded=True):
         st.markdown("""
         1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 그림으로 표현하세요.
-        2. **제출:** 그림을 다 그린 후 `제출하기`를 누르면 AI 판정 엔진이 그림을 분석합니다.
+        2. **제출:** 대충 선만 그으면 오답 처리가 되니 **최대한 형태를 갖추어** 그려주세요!
         3. **패스 기능:** 그림을 그리기 어렵다면 한 게임당 최대 **2회**까지 패스할 수 있습니다.
         """)
 
@@ -221,8 +220,8 @@ elif st.session_state.page == 'game':
     )
 
     def process_submission(image_data):
-        with st.spinner("🤖 AI가 그림을 분석 중입니다..."):
-            time.sleep(0.8) # 자연스러운 연출
+        with st.spinner("🤖 AI 판정 엔진이 그림을 분석 중입니다..."):
+            time.sleep(0.8)
             pil_img = Image.fromarray(image_data.astype('uint8'), 'RGBA').convert('RGB')
             is_correct, ai_ans = evaluate_drawing(pil_img, keyword)
 
@@ -230,7 +229,7 @@ elif st.session_state.page == 'game':
                 'round': solved_q + 1,
                 'keyword': keyword,
                 'image': pil_img,
-                'ai_response': ai_ans,
+                'ai_response': ai_ans if is_correct else "알 수 없음 (그림 부족)",
                 'is_correct': is_correct
             }
 
@@ -285,14 +284,14 @@ elif st.session_state.page == 'intermediate':
     with col_info:
         st.write("")
         if res['is_correct']:
-            st.success("🎉 **정답입니다!** AI가 그림을 완벽히 이해했습니다!")
+            st.success("🎉 **정답입니다!** 훌륭한 그림이네요!")
         else:
-            st.error("❌ **아쉽네요!** AI가 정답을 맞히지 못했습니다.")
+            st.error("❌ **오답입니다!** 대충 그린 선은 인정되지 않아요.")
 
         st.markdown(f"""
         <div class="result-text-big" style="background-color: #F8F9FA; padding: 20px; border-radius: 12px; margin-top: 10px;">
             • 🎯 <b>정답 (제시어):</b> <span style="color: #1565C0;">{res['keyword']}</span><br>
-            • 🤖 <b>AI의 응답:</b> <span style="color: #D32F2F;">{res['ai_response']}</span>
+            • 🤖 <b>판정 결과:</b> <span style="color: #D32F2F;">{res['ai_response']}</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -342,7 +341,7 @@ elif st.session_state.page == 'result':
                 st.markdown(f"""
                 <div class="result-text-big">
                     • 🎯 <b>정답:</b> <span style="color: #1565C0;">{item['keyword']}</span><br>
-                    • 🤖 <b>AI 응답:</b> <span style="color: #D32F2F;">{item['ai_response']}</span>
+                    • 🤖 <b>판정 결과:</b> <span style="color: #D32F2F;">{item['ai_response']}</span>
                 </div>
                 """, unsafe_allow_html=True)
             st.divider()
