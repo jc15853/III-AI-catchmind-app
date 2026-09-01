@@ -77,7 +77,7 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
-# 3. 헬퍼 함수 정의 (정밀해진 자체 판정 엔진)
+# 3. 헬퍼 함수 정의 (초정밀 형태 판정 엔진)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -93,18 +93,33 @@ def load_keywords():
 
 def evaluate_drawing(pil_image, keyword):
     """
-    대충 그은 선을 걸러내기 위해 그려진 픽셀 수 기준을 대폭 높였습니다.
+    단순한 선 긋기를 차단하기 위해 픽셀의 총량뿐만 아니라 
+    그림의 폭/높이 분산(퍼져 있는 정도)과 복잡도를 함께 검사합니다.
     """
     import numpy as np
     img_array = np.array(pil_image)
     
-    # 흰색 배경(255, 255, 255)이 아닌 픽셀 수 계산
-    non_white_pixels = np.sum(np.any(img_array[:, :, :3] < 240, axis=-1))
+    # 배경이 아닌 픽셀 추출
+    non_white = np.any(img_array[:, :, :3] < 240, axis=-1)
+    pixel_coords = np.argwhere(non_white)
     
-    # 기준을 300 픽셀 이상으로 대폭 상향 (대충 선 하나 긋는 것은 탈락)
-    if non_white_pixels < 300:
-        return False, "그림이 너무 부실해요! (조금 더 성의 있게 그려주세요)"
+    total_pixels = len(pixel_coords)
     
+    # 1단계: 최소 픽셀 수 미달 (너무 적게 그림)
+    if total_pixels < 400:
+        return False, "그림이 너무 단순합니다! (더 자세히 그려주세요)"
+    
+    # 2단계: 가로 또는 세로로 단순하게 뻗은 직선 형태인지 확인 (분산 체크)
+    y_coords = pixel_coords[:, 0]
+    x_coords = pixel_coords[:, 1]
+    
+    height_spread = np.max(y_coords) - np.min(y_coords)
+    width_spread = np.max(x_coords) - np.min(x_coords)
+    
+    # 한쪽 방향으로만 일자로 그은 경우(높이나 너비 중 하나가 유독 좁음) 차단
+    if height_spread < 30 or width_spread < 30:
+        return False, "단순한 선은 정답으로 인정되지 않습니다!"
+
     return True, keyword
 
 # -----------------------------------------------------------------------------
@@ -112,12 +127,12 @@ def evaluate_drawing(pil_image, keyword):
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
     st.markdown("<div class='big-title'>🎨 AI 캐치마인드 (안정 모드)</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>정밀해진 판정 엔진으로 즐기는 캐치마인드!</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>단순 선 긋기 방지 엔진이 적용된 캐치마인드!</div>", unsafe_allow_html=True)
 
     with st.expander("📖 **게임 방법 및 규칙 안내**", expanded=True):
         st.markdown("""
         1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 그림으로 표현하세요.
-        2. **제출:** 대충 선만 그으면 오답 처리가 되니 **최대한 형태를 갖추어** 그려주세요!
+        2. **주의:** 단순한 직선이나 대충 그은 선은 오답 처리됩니다. **면적과 형태를 갖추어** 그려주세요!
         3. **패스 기능:** 그림을 그리기 어렵다면 한 게임당 최대 **2회**까지 패스할 수 있습니다.
         """)
 
@@ -229,7 +244,7 @@ elif st.session_state.page == 'game':
                 'round': solved_q + 1,
                 'keyword': keyword,
                 'image': pil_img,
-                'ai_response': ai_ans if is_correct else "알 수 없음 (그림 부족)",
+                'ai_response': ai_ans if is_correct else "형태 불충분 (선 하나만 그어짐)",
                 'is_correct': is_correct
             }
 
@@ -286,7 +301,7 @@ elif st.session_state.page == 'intermediate':
         if res['is_correct']:
             st.success("🎉 **정답입니다!** 훌륭한 그림이네요!")
         else:
-            st.error("❌ **오답입니다!** 대충 그린 선은 인정되지 않아요.")
+            st.error("❌ **오답입니다!** 단순한 선은 정답으로 인정되지 않습니다.")
 
         st.markdown(f"""
         <div class="result-text-big" style="background-color: #F8F9FA; padding: 20px; border-radius: 12px; margin-top: 10px;">
