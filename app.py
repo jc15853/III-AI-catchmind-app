@@ -99,8 +99,8 @@ def ask_gemini(pil_image, category):
 
     try:
         genai.configure(api_key=api_key.strip())
-        # 최신 모델명으로 변경
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # 가장 안정적이고 확실하게 지원되는 gemini-1.5-flash 모델 사용
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = (
             f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
