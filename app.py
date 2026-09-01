@@ -4,7 +4,8 @@ import random
 import pandas as pd
 import streamlit as st
 from PIL import Image
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from streamlit_drawable_canvas import st_canvas
 
 # -----------------------------------------------------------------------------
@@ -98,29 +99,19 @@ def ask_gemini(pil_image, category):
         return "통신 실패: GEMINI_API_KEY 설정 필요"
 
     try:
-        genai.configure(api_key=api_key.strip())
+        # 최신 google-genai 클라이언트 초기화 방식
+        client = genai.Client(api_key=api_key.strip())
         
-        # 최신 안정 모델 고정 사용 (gemini-2.5-flash)
-        model_candidates = ['gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-1.5-flash']
-        
-        model = None
-        for m_name in model_candidates:
-            try:
-                model = genai.GenerativeModel(m_name)
-                break
-            except Exception:
-                continue
-                
-        if not model:
-            model = genai.GenerativeModel('gemini-2.5-flash')
-
         prompt = (
             f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
             f"사용자가 그린 그림의 전체적인 '형태'와 '윤곽'에 집중해서 무엇을 그린 것인지 정답을 추론해 주세요.\n"
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
-        response = model.generate_content([pil_image, prompt])
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[pil_image, prompt]
+        )
         
         if response and response.text:
             return response.text.strip()
