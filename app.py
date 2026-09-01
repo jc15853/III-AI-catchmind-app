@@ -93,7 +93,7 @@ def load_keywords():
         return None
 
 def ask_gemini(pil_image, category):
-    """안정적인 모델(1.5-flash)부터 순차적으로 시도하는 함수"""
+    """Vertex AI(AQ. 키) 호환 호출 방식"""
     api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return "통신 실패: GEMINI_API_KEY 미설정"
@@ -107,31 +107,19 @@ def ask_gemini(pil_image, category):
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
-        # 가장 안정적이고 100% 작동하는 모델 목록 (순차적 시도)
-        models_to_try = [
-            'gemini-1.5-flash',
-            'gemini-1.5-flash-8b',
-            'gemini-2.0-flash'
-        ]
-
-        last_error = ""
-        for model_name in models_to_try:
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=[pil_image, prompt]
-                )
-                if response and response.text:
-                    return response.text.strip()
-            except Exception as e:
-                last_error = str(e)
-                continue # 실패하면 다음 모델로 넘어감
-
-        # 모든 모델이 실패했을 경우
-        return f"통신 실패(모델 권한 없음): {last_error[:40]}"
+        # Vertex AI 표준 모델명 지정 (AQ. 키 대응)
+        response = client.models.generate_content(
+            model='publishers/google/models/gemini-1.5-flash',
+            contents=[pil_image, prompt]
+        )
+        
+        if response and response.text:
+            return response.text.strip()
+        else:
+            return "통신 실패: AI 응답 없음"
 
     except Exception as e:
-        return f"통신 실패(초기화 에러): {str(e)[:40]}"
+        return f"통신 실패(Vertex): {str(e)[:45]}"
 
 # -----------------------------------------------------------------------------
 # 3. 화면 1: 시작 화면
