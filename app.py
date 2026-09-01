@@ -4,7 +4,7 @@ import random
 import pandas as pd
 import streamlit as st
 from PIL import Image
-from google import genai
+import google.generativeai as genai
 from streamlit_drawable_canvas import st_canvas
 
 # -----------------------------------------------------------------------------
@@ -93,14 +93,14 @@ def load_keywords():
         return None
 
 def ask_gemini(pil_image, category):
-    """Google AI Studio API 키를 사용하는 표준 방식"""
     api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return "통신 실패: GEMINI_API_KEY 설정 필요"
 
     try:
-        # AI Studio API 키로 클라이언트 생성 (vertexai 옵션 제거)
-        client = genai.Client(api_key=api_key.strip())
+        genai.configure(api_key=api_key.strip())
+        # 가장 범용적이고 안정적인 최신 비전 모델 사용
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = (
             f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
@@ -108,10 +108,7 @@ def ask_gemini(pil_image, category):
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=[pil_image, prompt]
-        )
+        response = model.generate_content([pil_image, prompt])
         
         if response and response.text:
             return response.text.strip()
@@ -238,7 +235,7 @@ elif st.session_state.page == 'game':
         with st.spinner("🤖 AI가 그림을 분석 중입니다..."):
             pil_img = Image.fromarray(image_data.astype('uint8'), 'RGBA').convert('RGB')
             ai_ans = ask_gemini(pil_img, category)
-            is_correct = (keyword.strip() == ai_ans.strip())
+            is_correct = (keyword.strip() in ai_ans.strip())
 
             result_data = {
                 'round': solved_q + 1,
