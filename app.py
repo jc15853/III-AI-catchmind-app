@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="정보 교과: 추상화 게임",
     page_icon="🧩",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(
@@ -79,19 +79,20 @@ if "selected_color" not in st.session_state:
 if "last_result" not in st.session_state:
   st.session_state.last_result = None
 
-# -----------------------------------------------------------------------------
-# 공통 사이드바 (첫 화면으로 이동 기능 제공)
-# -----------------------------------------------------------------------------
-with st.sidebar:
-  st.markdown("### 🧩 정보 교과 메뉴")
-  if st.button("🏠 처음 화면으로 가기", key="sidebar_home_btn"):
-    st.session_state.page = "start"
-    st.session_state.category = None
-    st.session_state.history = []
-    st.session_state.last_result = None
-    st.rerun()
+
+def render_top_bar():
+  c1, c2 = st.columns([6, 1])
+  with c1:
+    st.markdown("#### 🧩 AI 추상화 핵심 특징 추출 챌린지")
+  with c2:
+    if st.button("🏠 처음으로", key="top_home_btn"):
+      st.session_state.page = "start"
+      st.session_state.category = None
+      st.session_state.history = []
+      st.session_state.last_result = None
+      st.rerun()
   st.divider()
-  st.caption("중1 정보 [2. 문제해결과 프로그래밍]")
+
 
 # -----------------------------------------------------------------------------
 # 키워드 CSV 로드 및 AI 심사 헬퍼 함수
@@ -121,7 +122,6 @@ def ask_gemini_vision(pil_image, keyword, category):
 
     client = genai.Client(api_key=api_key.strip())
 
-    # 피드백 문구를 간결하게 유도하도록 프롬프트 수정
     prompt = (
         f"당신은 정보 교과(컴퓨팅 사고력)의 '추상화(Abstraction)' 개념을 평가하는 AI 심사위원입니다.\n"
         f"카테고리: '{category}' / 목표 개념(제시어): '{keyword}'\n\n"
@@ -195,6 +195,8 @@ if st.session_state.page == "start":
 # 2. 화면 2: 게임 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
+  render_top_bar()
+
   pool_idx = st.session_state.current_pool_idx
   keyword = st.session_state.quiz_pool[pool_idx]
   category = st.session_state.category
@@ -334,6 +336,8 @@ elif st.session_state.page == "game":
 # 3. 화면 3: 중간 평가 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "intermediate":
+  render_top_bar()
+
   res = st.session_state.last_result
   if res is None:
     st.session_state.page = "start"
@@ -388,6 +392,8 @@ elif st.session_state.page == "intermediate":
 # 4. 화면 4: 최종 결과 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "result":
+  render_top_bar()
+
   st.markdown(
       "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
       unsafe_allow_html=True,
