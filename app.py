@@ -154,9 +154,10 @@ if st.session_state.page == "start":
     st.markdown("""
         🤖 **정보 교과 [문제해결과 프로그래밍 - 추상화]**  
         
-        💡 **추상화: 불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것**
+        💡 **추상화의 정의:**  
+        > **"불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것이다."**
         
-        학습 목표: 제시된 대상에서 불필요한 요소는 없애고, 본질적인 핵심 요소만 간결하게 그려 표현해 봅시다!
+        학습 목표: 제시된 대상에서 불필요한 디테일은 없애고, 본질적인 핵심 요소만 간결하게 그려 표현해 봅시다!
         """)
 
   st.write("")
@@ -407,10 +408,28 @@ elif st.session_state.page == "intermediate":
         st.session_state.page = "result"
         st.rerun()
     else:
-      if st.button("➡️ 다음 문제 풀기"):
-        st.session_state.start_time = time.time()
-        st.session_state.page = "game"
-        st.rerun()
+      # 실패했을 때만 '다시 시도하기' 버튼을 제공
+      if not is_success:
+        b_col1, b_col2 = st.columns(2)
+        with b_col1:
+          if st.button("🔄 다시 시도하기"):
+            # 최근 기록 및 카운트 복원 후 게임 화면으로 복귀
+            st.session_state.history.pop()
+            st.session_state.solved_count -= 1
+            st.session_state.current_pool_idx -= 1
+            st.session_state.start_time = time.time()
+            st.session_state.page = "game"
+            st.rerun()
+        with b_col2:
+          if st.button("➡️ 다음 문제 풀기"):
+            st.session_state.start_time = time.time()
+            st.session_state.page = "game"
+            st.rerun()
+      else:
+        if st.button("➡️ 다음 문제 풀기"):
+          st.session_state.start_time = time.time()
+          st.session_state.page = "game"
+          st.rerun()
 
 # -----------------------------------------------------------------------------
 # 4. 화면 4: 최종 결과 화면
