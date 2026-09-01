@@ -133,7 +133,7 @@ def ask_gemini_vision(pil_image, keyword, category):
     )
 
     response = client.models.generate_content(
-        model="gemini-3.6-flash", contents=[pil_img, prompt]
+        model="gemini-3.6-flash", contents=[pil_image, prompt]
     )
     if response and response.text:
       text = response.text.strip()
@@ -158,8 +158,7 @@ if st.session_state.page == "start":
     st.markdown("""
         🤖 **정보 교과 [문제해결과 프로그래밍 - 추상화]**  
         
-        💡 **추상화의 정의:**  
-        > **"불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것이다."**
+        💡 **추상화:** 불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것
         
         학습 목표: 제시된 대상에서 불필요한 디테일은 없애고, 본질적인 핵심 요소만 간결하게 그려 표현해 봅시다!
         """)
