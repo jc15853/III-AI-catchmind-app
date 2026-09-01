@@ -3,7 +3,7 @@ import time
 import random
 import pandas as pd
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageOps
 from streamlit_drawable_canvas import st_canvas
 
 # -----------------------------------------------------------------------------
@@ -77,7 +77,7 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
-# 3. 헬퍼 함수 정의 (초정밀 형태 판정 엔진)
+# 3. 헬퍼 함수 정의 (캔버스 투명도 오류 해결형 판정 엔진)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -93,31 +93,40 @@ def load_keywords():
 
 def evaluate_drawing(pil_image, keyword):
     """
-    단순한 선 긋기를 차단하기 위해 픽셀의 총량뿐만 아니라 
-    그림의 폭/높이 분산(퍼져 있는 정도)과 복잡도를 함께 검사합니다.
+    캔버스 투명 레이어 문제를 해결하고, 실제 그려진 획의 양과 면적을 정밀 측정합니다.
     """
     import numpy as np
-    img_array = np.array(pil_image)
     
-    # 배경이 아닌 픽셀 추출
-    non_white = np.any(img_array[:, :, :3] < 240, axis=-1)
-    pixel_coords = np.argwhere(non_white)
+    # 이미지를 RGB로 강제 변환하여 흰색 배경 합치기
+    if pil_image.mode == 'RGBA':
+        background = Image.new("RGB", pil_image.size, (255, 255, 255))
+        background.paste(pil_image, mask=pil_image.split()[3]) # 알파 채널 마스크 적용
+        img_rgb = background
+    else:
+        img_rgb = pil_image.convert('RGB')
+
+    img_array = np.array(img_rgb)
+    
+    # 순수 흰색(255, 255, 255)이 아닌 픽셀만 추출 (그려진 선)
+    # 오차 범위를 주어 연한 색이나 안티앨리어싱 픽셀도 정확히 감지
+    drawn_mask = np.any(img_array < 245, axis=-1)
+    pixel_coords = np.argwhere(drawn_mask)
     
     total_pixels = len(pixel_coords)
     
-    # 1단계: 최소 픽셀 수 미달 (너무 적게 그림)
-    if total_pixels < 400:
-        return False, "그림이 너무 단순합니다! (더 자세히 그려주세요)"
+    # 1단계: 최소 그려진 픽셀 수 검사 (최소 800 픽셀 이상은 그려야 함)
+    if total_pixels < 800:
+        return False, "그림이 너무 적습니다! (조금 더 풍성하게 그려주세요)"
     
-    # 2단계: 가로 또는 세로로 단순하게 뻗은 직선 형태인지 확인 (분산 체크)
+    # 2단계: 가로 또는 세로로 단순하게 뻗은 선 형태인지 검사 (퍼져 있는 정도)
     y_coords = pixel_coords[:, 0]
     x_coords = pixel_coords[:, 1]
     
     height_spread = np.max(y_coords) - np.min(y_coords)
     width_spread = np.max(x_coords) - np.min(x_coords)
     
-    # 한쪽 방향으로만 일자로 그은 경우(높이나 너비 중 하나가 유독 좁음) 차단
-    if height_spread < 30 or width_spread < 30:
+    # 단일 직선이나 찌꺼기 선 차단 (너비와 높이가 모두 어느 정도 퍼져 있어야 함)
+    if height_spread < 50 or width_spread < 50:
         return False, "단순한 선은 정답으로 인정되지 않습니다!"
 
     return True, keyword
@@ -127,12 +136,12 @@ def evaluate_drawing(pil_image, keyword):
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
     st.markdown("<div class='big-title'>🎨 AI 캐치마인드 (안정 모드)</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>단순 선 긋기 방지 엔진이 적용된 캐치마인드!</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>투명 캔버스 오류가 해결된 완성형 캐치마인드!</div>", unsafe_allow_html=True)
 
     with st.expander("📖 **게임 방법 및 규칙 안내**", expanded=True):
         st.markdown("""
         1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 그림으로 표현하세요.
-        2. **주의:** 단순한 직선이나 대충 그은 선은 오답 처리됩니다. **면적과 형태를 갖추어** 그려주세요!
+        2. **주의:** 대충 선 하나만 그으면 오답 처리가 되니, 형태를 갖추어 충분히 그려주세요!
         3. **패스 기능:** 그림을 그리기 어렵다면 한 게임당 최대 **2회**까지 패스할 수 있습니다.
         """)
 
@@ -224,7 +233,7 @@ elif st.session_state.page == 'game':
         stroke_width = st.slider("두께", 3, 25, 8, disabled=is_time_over, label_visibility="collapsed")
 
     canvas_result = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)",
+        fill_color="rgba(255, 255, 255, 1)",
         stroke_width=stroke_width,
         stroke_color=st.session_state.selected_color,
         background_color="#FFFFFF",
@@ -237,7 +246,7 @@ elif st.session_state.page == 'game':
     def process_submission(image_data):
         with st.spinner("🤖 AI 판정 엔진이 그림을 분석 중입니다..."):
             time.sleep(0.8)
-            pil_img = Image.fromarray(image_data.astype('uint8'), 'RGBA').convert('RGB')
+            pil_img = Image.fromarray(image_data.astype('uint8'))
             is_correct, ai_ans = evaluate_drawing(pil_img, keyword)
 
             result_data = {
