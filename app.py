@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="정보 교과: 추상화 게임",
     page_icon="🧩",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 st.markdown(
@@ -123,10 +123,12 @@ def ask_gemini_vision(pil_image, keyword, category):
     client = genai.Client(api_key=api_key.strip())
 
     prompt = (
-        f"당신은 정보 교과(컴퓨팅 사고력)의 '추상화(Abstraction)' 개념을 평가하는 AI 심사위원입니다.\n"
+        f"당신은 정보 교과(컴퓨팅 사고력)의 '추상화(Abstraction)' 개념을 평가하는 엄격한 AI 심사위원입니다.\n"
         f"카테고리: '{category}' / 목표 개념(제시어): '{keyword}'\n\n"
-        f"사용자가 그린 그림이 제시어('{keyword}')의 핵심 특징을 담고 있는지 간결하게 평가해주세요.\n"
-        f"장점과 보완점 같은 길고 복잡한 분석 형태는 제외하고, 어떤 특징이 표현되었는지 핵심 내용 위주로 한두 문장으로 짧게 설명한 뒤 정답 제시어('{keyword}')를 포함하여 답변해 주세요."
+        f"사용자가 그린 그림이 제시어('{keyword}')의 핵심 특징을 잘 담고 있는지 평가해주세요.\n"
+        f"1. 특징이 잘 표현되어 제시어가 유추 가능하면 '성공'이라는 뉘앙스로 설명하세요.\n"
+        f"2. 특징이 부족하거나 유추하기 어려우면 '실패'라는 뉘앙스로 설명하세요.\n"
+        f"장점과 보완점 같은 길고 복잡한 분석 형태는 제외하고, 핵심 내용 위주로 한두 문장으로 짧게 설명해 주세요."
     )
 
     response = client.models.generate_content(
@@ -280,7 +282,26 @@ elif st.session_state.page == "game":
       ai_ans = ask_gemini_vision(pil_img, keyword, category)
 
       has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
-      is_success = (not has_error) and (keyword.strip() in ai_ans.strip())
+
+      # 부정적인 키워드가 포함되어 있으면 실패로 판정
+      negative_keywords = [
+          "어렵",
+          "부족",
+          "없",
+          "않",
+          "못",
+          "유추하기",
+          "식별",
+          "실패",
+      ]
+      is_negative = any(nk in ai_ans for nk in negative_keywords)
+
+      # 키워드가 포함되어 있더라도 부정적 평가가 강하면 성공으로 인정하지 않음
+      is_success = (
+          (not has_error)
+          and (keyword.strip() in ai_ans.strip())
+          and (not is_negative)
+      )
 
       result_data = {
           "round": solved_q + 1,
@@ -362,7 +383,7 @@ elif st.session_state.page == "intermediate":
     if is_success:
       st.success("✨ 핵심 특징 추출(추상화) 성공!")
     else:
-      st.error("⚠️ 핵심 특징 추출 실패 또는 통신 오류 발생")
+      st.error("⚠️ 핵심 특징 추출 실패 (다시 도전해 보세요!)")
 
     st.markdown(
         f"""
@@ -411,7 +432,7 @@ elif st.session_state.page == "result":
     item_success = item.get("is_success", False)
     bg_color = "#E0F2F1" if item_success else "#FFEBEE"
     border_color = "#00838F" if item_success else "#C62828"
-    status_label = "성공" if item_success else "실패/오류"
+    status_label = "성공" if item_success else "실패"
 
     with st.container():
       st.markdown(
