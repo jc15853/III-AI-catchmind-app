@@ -10,7 +10,7 @@ from streamlit_drawable_canvas import st_canvas
 # 1. 페이지 기본 설정 및 태블릿 맞춤형 CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="🎨 AI 엄격한 캐치마인드",
+    page_title="🎨 AI 진짜 캐치마인드",
     page_icon="🎨",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -75,11 +75,9 @@ if 'selected_color' not in st.session_state:
     st.session_state.selected_color = "#000000"
 if 'last_result' not in st.session_state:
     st.session_state.last_result = None
-if 'api_key_input' not in st.session_state:
-    st.session_state.api_key_input = ""
 
 # -----------------------------------------------------------------------------
-# 3. 헬퍼 함수 정의
+# 3. 헬퍼 함수 정의 (초엄격 Gemini AI 비전 판정 엔진)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -93,7 +91,15 @@ def load_keywords():
         st.error("⚠️ 'keyword.csv' 파일이 필요합니다!")
         return None
 
-def ask_gemini_vision(pil_image, keyword, category, api_key):
+def ask_gemini_vision(pil_image, keyword, category):
+    """
+    단순한 도형(동그라미, 선 등)을 정답으로 인정하지 않고, 
+    해당 제시어의 구체적인 특징이 제대로 그려졌는지 엄격하게 심사합니다.
+    """
+    api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return "API 키 설정 필요 (Secrets 확인)"
+
     try:
         from google import genai
         client = genai.Client(api_key=api_key.strip())
@@ -103,7 +109,7 @@ def ask_gemini_vision(pil_image, keyword, category, api_key):
             f"카테고리: '{category}' / 정답 제시어: '{keyword}'\n\n"
             f"사용자가 그린 그림을 매우 엄격하게 평가해주세요.\n"
             f"1. 단순한 동그라미, 선, 낙서, 대충 형태만 흉내 낸 것은 절대 정답으로 인정하지 마세요.\n"
-            f"2. 제시어('{keyword}') 특유의 디테일(예: 사과라면 꼭지나 잎사귀, 동물이라면 귀나 다리 등)이 인식 가능할 정도로 그려져 있어야만 정답으로 취급합니다.\n"
+            f"2. 제시어('{keyword}') 특유의 디테일(예: 사과라면 꼭지나 잎사귀, 동물이라면 귀나 다리 등)이 recognizable(인식 가능할 정도)하게 그려져 있어야만 정답으로 취급합니다.\n"
             f"3. 그림이 너무 성의 없거나 단순한 도형이면 정답 제시어 대신 '단순 도형' 또는 AI가 실제로 본 사물의 이름을 단어로 답하세요.\n"
             f"4. 오직 추론한 '단어' 하나만 정확하게 답변해 주세요. (예: 사과, 동그라미 등)"
         )
@@ -115,7 +121,7 @@ def ask_gemini_vision(pil_image, keyword, category, api_key):
         if response and response.text:
             return response.text.strip()
     except Exception as e:
-        return f"통신 오류 ({str(e)})"
+        return "통신 오류 발생"
 
     return "판정 불가"
 
@@ -134,13 +140,6 @@ if st.session_state.page == 'start':
         """)
 
     st.write("")
-    
-    # 화면에서 바로 API 키를 입력받는 칸
-    st.markdown("### 🔑 구글 Gemini API 키 입력")
-    api_key_val = st.text_input("API 키를 입력하세요 (Google AI Studio에서 발급)", type="password", value=st.session_state.api_key_input, placeholder="AIzaSy...")
-    st.session_state.api_key_input = api_key_val
-
-    st.write("")
     df_keywords = load_keywords()
     
     if df_keywords is not None:
@@ -154,25 +153,22 @@ if st.session_state.page == 'start':
         for idx, cat in enumerate(categories):
             with cols[idx]:
                 if st.button(f"{cat}", key=f"cat_btn_{idx}"):
-                    if not st.session_state.api_key_input.strip():
-                        st.error("⚠️ 먼저 상단에 Gemini API 키를 입력해 주세요!")
+                    filtered = df_keywords[df_keywords['카테고리'] == cat]['키워드'].tolist()
+                    required_count = target_q + 2
+                    
+                    if len(filtered) < required_count:
+                        st.error(f"'{cat}' 카테고리의 키워드가 부족합니다 (최소 {required_count}개 필요).")
                     else:
-                        filtered = df_keywords[df_keywords['카테고리'] == cat]['키워드'].tolist()
-                        required_count = target_q + 2
-                        
-                        if len(filtered) < required_count:
-                            st.error(f"'{cat}' 카테고리의 키워드가 부족합니다 (최소 {required_count}개 필요).")
-                        else:
-                            st.session_state.category = cat
-                            st.session_state.total_target_questions = target_q
-                            st.session_state.quiz_pool = random.sample(filtered, required_count)
-                            st.session_state.current_pool_idx = 0
-                            st.session_state.solved_count = 0
-                            st.session_state.pass_count = 0
-                            st.session_state.history = []
-                            st.session_state.start_time = time.time()
-                            st.session_state.page = 'game'
-                            st.rerun()
+                        st.session_state.category = cat
+                        st.session_state.total_target_questions = target_q
+                        st.session_state.quiz_pool = random.sample(filtered, required_count)
+                        st.session_state.current_pool_idx = 0
+                        st.session_state.solved_count = 0
+                        st.session_state.pass_count = 0
+                        st.session_state.history = []
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = 'game'
+                        st.rerun()
 
 # -----------------------------------------------------------------------------
 # 5. 화면 2: 게임 화면
@@ -244,8 +240,9 @@ elif st.session_state.page == 'game':
     def process_submission(image_data):
         with st.spinner("🤖 AI 심사위원이 그림을 엄격하게 채점 중입니다..."):
             pil_img = Image.fromarray(image_data.astype('uint8')).convert('RGB')
-            ai_ans = ask_gemini_vision(pil_img, keyword, category, st.session_state.api_key_input)
+            ai_ans = ask_gemini_vision(pil_img, keyword, category)
             
+            # AI의 답변에 정답 키워드가 정확히 포함되어 있는지 확인
             is_correct = (keyword.strip() in ai_ans.strip())
 
             result_data = {
