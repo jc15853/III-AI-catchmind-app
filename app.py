@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="정보 교과: 추상화 게임",
     page_icon="🧩",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(
@@ -123,11 +123,12 @@ def ask_gemini_vision(pil_image, keyword, category):
     client = genai.Client(api_key=api_key.strip())
 
     prompt = (
-        f"당신은 정보 교과(컴퓨팅 사고력)의 '추상화(Abstraction)' 개념을 평가하는 엄격한 AI 심사위원입니다.\n"
+        f"당신은 정보 교과(컴퓨팅 사고력)의 '추상화' 개념을 평가하는 엄격한 AI 심사위원입니다.\n"
+        f"교과서 정의: '추상화란 불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것이다.'\n\n"
         f"카테고리: '{category}' / 목표 개념(제시어): '{keyword}'\n\n"
-        f"사용자가 그린 그림이 제시어('{keyword}')의 핵심 특징을 잘 담고 있는지 평가해주세요.\n"
-        f"1. 특징이 잘 표현되어 제시어가 유추 가능하면 '성공'이라는 뉘앙스로 설명하세요.\n"
-        f"2. 특징이 부족하거나 유추하기 어려우면 '실패'라는 뉘앙스로 설명하세요.\n"
+        f"사용자가 그린 그림이 위 정의에 따라 불필요한 것을 없애고 제시어('{keyword}')의 핵심 요소를 제대로 뽑아냈는지 엄격하게 평가해주세요.\n"
+        f"1. 핵심 요소가 잘 표현되어 제시어가 유추 가능하면 '성공'이라는 뉘앙스로 설명하세요.\n"
+        f"2. 핵심 요소가 부족하거나 유추하기 어려우면 '실패'라는 뉘앙스로 설명하세요.\n"
         f"장점과 보완점 같은 길고 복잡한 분석 형태는 제외하고, 핵심 내용 위주로 한두 문장으로 짧게 설명해 주세요."
     )
 
@@ -149,24 +150,27 @@ if st.session_state.page == "start":
   st.title("🧩 AI 추상화 핵심 특징 추출 챌린지")
   st.caption("중1 정보 [2. 문제해결과 프로그래밍] - 복잡한 대상에서 핵심 특징만 추출하는 컴퓨팅 사고력 학습기")
 
-  with st.expander("📖 교육과정 학습 목표 안내", expanded=True):
+  with st.expander("📖 교육과정 학습 목표 및 정의 안내", expanded=True):
     st.markdown("""
         🤖 **정보 교과 [문제해결과 프로그래밍 - 추상화]**  
-        복잡한 사물이나 개념에서 불필요한 세부 요소는 숨기고, 본질적인 **핵심 특징**만 추출하는 능력을 기릅니다.
         
-        💡 **학습 목표:** 제시된 대상의 핵심 속성이 무엇인지 파악하고, 디테일 대신 대상을 대표하는 특징만 간결하게 그려 표현해 봅시다!
+        💡 **추상화의 정의:**  
+        > **"불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것이다."**
+        
+        학습 목표: 제시된 대상에서 불필요한 디테일은 없애고, 본질적인 핵심 요소만 간결하게 그려 표현해 봅시다!
         """)
 
   st.write("")
   df_keywords = load_keywords()
 
   if df_keywords is not None:
-    st.write("### 1. 문제 수 선택")
-    target_q = st.select_slider(
-        "문항 수 선택:",
-        options=[3, 5, 7, 10],
+    st.write("### 1. 문제 수 입력")
+    target_q = st.number_input(
+        "풀고 싶은 문제 수를 입력하세요 (1~20):",
+        min_value=1,
+        max_value=20,
         value=5,
-        label_visibility="collapsed",
+        step=1,
     )
 
     st.write("### 2. 카테고리 선택")
@@ -180,7 +184,9 @@ if st.session_state.page == "start":
           required_count = target_q + 2
 
           if len(filtered) < required_count:
-            st.error(f"'{cat}' 카테고리의 키워드가 부족합니다 (최소 {required_count}개 필요).")
+            st.error(
+                f"'{cat}' 카테고리의 키워드가 부족합니다 (요청하신 문제 수에 맞추려면 최소 {required_count}개가 필요합니다). 입력한 문제 수를 낮추거나 키워드를 추가해 주세요."
+            )
           else:
             st.session_state.category = cat
             st.session_state.total_target_questions = target_q
@@ -283,7 +289,6 @@ elif st.session_state.page == "game":
 
       has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
 
-      # 부정적인 키워드가 포함되어 있으면 실패로 판정
       negative_keywords = [
           "어렵",
           "부족",
@@ -296,7 +301,6 @@ elif st.session_state.page == "game":
       ]
       is_negative = any(nk in ai_ans for nk in negative_keywords)
 
-      # 키워드가 포함되어 있더라도 부정적 평가가 강하면 성공으로 인정하지 않음
       is_success = (
           (not has_error)
           and (keyword.strip() in ai_ans.strip())
@@ -425,7 +429,7 @@ elif st.session_state.page == "result":
   )
 
   completed_cnt = len(st.session_state.history)
-  st.metric("완료된 추상화 문항 수", f"{completed_cnt} 문항")
+  st.metric("완료된 문항 수", f"{completed_cnt} 문항")
   st.divider()
 
   for item in st.session_state.history:
