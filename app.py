@@ -19,7 +19,6 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* 버튼 스타일 정의 */
     .stButton>button {
         width: 100%;
         height: 3.5rem;
@@ -40,14 +39,10 @@ st.markdown("""
         color: #666666;
         margin-bottom: 1.5rem;
     }
-    
-    /* 팔레트 색상 전용 버튼 */
     .color-btn-black button { background-color: #000000 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
     .color-btn-red button { background-color: #E53935 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
     .color-btn-blue button { background-color: #1E88E5 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
     .color-btn-green button { background-color: #43A047 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
-    
-    /* 결과 및 중간 화면 대형 텍스트 */
     .result-text-big {
         font-size: 1.4rem !important;
         font-weight: bold;
@@ -60,7 +55,7 @@ st.markdown("""
 # 1. 세션 상태(Session State) 초기화
 # -----------------------------------------------------------------------------
 if 'page' not in st.session_state:
-    st.session_state.page = 'start'  # 'start', 'game', 'intermediate', 'result'
+    st.session_state.page = 'start'
 if 'category' not in st.session_state:
     st.session_state.category = None
 if 'total_target_questions' not in st.session_state:
@@ -87,7 +82,6 @@ if 'last_result' not in st.session_state:
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
-    """keyword.csv 파일 로드"""
     file_path = 'keyword.csv'
     if os.path.exists(file_path):
         try:
@@ -99,14 +93,14 @@ def load_keywords():
         return None
 
 def ask_gemini(pil_image, category):
-    """Gemini 모델 다중 호환 호출 (자동 모델 탐색 지원)"""
-    # 1. API 키 확인
+    """신규 AQ 키 호환 SDK 기반 호출 함수"""
     api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        return "통신 실패: API 키 미설정"
+        return "통신 실패: GEMINI_API_KEY 미설정"
 
     try:
-        client = genai.Client(api_key=api_key)
+        # 최신 google-genai 클라이언트 초기화
+        client = genai.Client(api_key=api_key.strip())
         
         prompt = (
             f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
@@ -114,54 +108,40 @@ def ask_gemini(pil_image, category):
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
-        # 2. 계정/SDK 호환성을 위해 지원 가능한 후보 모델명을 순차적으로 실행
-        candidate_models = [
-            'gemini-2.5-flash',
-            'models/gemini-2.5-flash',
-            'gemini-2.0-flash',
-            'models/gemini-2.0-flash'
-        ]
+        # AQ 키 규격과 호환되는 2.5-flash 모델 호출
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[pil_image, prompt]
+        )
+        
+        if response and response.text:
+            return response.text.strip()
+        else:
+            return "통신 실패: AI 응답 없음"
 
-        last_error = None
-        for model_name in candidate_models:
+    except Exception as e:
+        err_str = str(e)
+        if "404" in err_str:
+            # 2.5-flash가 안 될 경우 2.0-flash 보조 시도
             try:
+                client = genai.Client(api_key=api_key.strip())
                 response = client.models.generate_content(
-                    model=model_name,
+                    model='gemini-2.0-flash',
                     contents=[pil_image, prompt]
                 )
                 if response and response.text:
                     return response.text.strip()
-            except Exception as e:
-                last_error = e
-                # 404인 경우 다음 모델 후보로 진행
-                if "404" in str(e):
-                    continue
-                else:
-                    raise e
-
-        # 모든 후보 모델이 실패한 경우 마지막 에러 메시지 출력
-        if last_error:
-            raise last_error
-
-    except Exception as e:
-        err_msg = str(e)
-        if "403" in err_msg or "API_KEY" in err_msg:
-            return "통신 실패: API 키 오류"
-        elif "429" in err_msg:
-            return "통신 실패: 사용량 초과"
-        elif "404" in err_msg:
-            return "통신 실패: 지원 모델 없음(Google AI Studio 키 확인 필요)"
-        else:
-            return f"통신 실패 ({err_msg[:30]})"
+            except Exception as inner_e:
+                return f"통신 실패(404): {str(inner_e)[:30]}"
+        return f"통신 실패: {err_str[:40]}"
 
 # -----------------------------------------------------------------------------
-# 3. 화면 1: 시작 화면 (안내 및 카테고리 선택)
+# 3. 화면 1: 시작 화면
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
     st.markdown("<div class='big-title'>🎨 AI 캐치마인드</div>", unsafe_allow_html=True)
     st.markdown("<div class='sub-title'>내가 그린 그림을 AI가 맞힐 수 있을까요?</div>", unsafe_allow_html=True)
 
-    # 📌 게임 안내
     with st.expander("📖 **게임 방법 및 규칙 안내**", expanded=True):
         st.markdown("""
         1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 그림으로 표현하세요.
@@ -185,7 +165,7 @@ if st.session_state.page == 'start':
             with cols[idx]:
                 if st.button(f"{cat}", key=f"cat_btn_{idx}"):
                     filtered = df_keywords[df_keywords['카테고리'] == cat]['키워드'].tolist()
-                    required_count = target_q + 2  # 패스 2회 대비
+                    required_count = target_q + 2
                     
                     if len(filtered) < required_count:
                         st.error(f"'{cat}' 카테고리의 키워드가 부족합니다 (최소 {required_count}개 필요).")
@@ -212,12 +192,10 @@ elif st.session_state.page == 'game':
     solved_q = st.session_state.solved_count
     pass_used = st.session_state.pass_count
 
-    # 타이머 (60초)
     elapsed_time = time.time() - st.session_state.start_time
     remaining_time = max(0, int(60 - elapsed_time))
     is_time_over = (remaining_time == 0)
 
-    # 상단 요약 바
     col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
         st.markdown(f"#### 🎯 문제 **{solved_q + 1} / {target_q}**")
@@ -230,7 +208,6 @@ elif st.session_state.page == 'game':
 
     st.write("")
 
-    # 🎨 팔레트 설정
     p_col1, p_col2, p_col3, p_col4, p_col5, p_col6 = st.columns([1, 1, 1, 1, 1.5, 2])
     
     with p_col1:
@@ -260,7 +237,6 @@ elif st.session_state.page == 'game':
     with p_col6:
         stroke_width = st.slider("두께", 3, 25, 8, disabled=is_time_over, label_visibility="collapsed")
 
-    # 🖌️ 캔버스 (가로 900px)
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=stroke_width,
@@ -272,7 +248,6 @@ elif st.session_state.page == 'game':
         key=f"canvas_p{pool_idx}",
     )
 
-    # 제출 처리 함수
     def process_submission(image_data):
         with st.spinner("🤖 AI가 그림을 분석 중입니다..."):
             pil_img = Image.fromarray(image_data.astype('uint8'), 'RGBA').convert('RGB')
@@ -295,14 +270,12 @@ elif st.session_state.page == 'game':
             st.session_state.page = 'intermediate'
             st.rerun()
 
-    # 패스 처리 함수
     def process_pass():
         st.session_state.pass_count += 1
         st.session_state.current_pool_idx += 1
         st.session_state.start_time = time.time()
         st.rerun()
 
-    # 하단 버튼 그룹
     st.write("")
     btn_col1, btn_col2 = st.columns([1, 1])
 
