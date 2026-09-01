@@ -117,7 +117,6 @@ def ask_gemini_vision(pil_image, keyword, category):
         f"3. 분석 결과 도출된 핵심 개념이 '{keyword}'와 일치하는지 판정하고, 어떤 핵심 특징을 추출해 표현했는지 설명과 함께 정답 제시어('{keyword}')를 반드시 답변에 포함해 주세요."
     )
 
-    # 모델명 업데이트 (gemini-3.6-flash)
     response = client.models.generate_content(
         model="gemini-3.6-flash", contents=[pil_image, prompt]
     )
@@ -266,7 +265,6 @@ elif st.session_state.page == "game":
       pil_img = Image.fromarray(image_data.astype("uint8")).convert("RGB")
       ai_ans = ask_gemini_vision(pil_img, keyword, category)
 
-      # 통신 오류가 발생했거나 키워드가 포함되지 않은 경우 실패 처리
       has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
       is_success = (not has_error) and (keyword.strip() in ai_ans.strip())
 
@@ -324,19 +322,29 @@ elif st.session_state.page == "game":
 # 3. 화면 3: 중간 평가 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "intermediate":
+  # KeyError 방지를 위한 안전한 get 처리
   res = st.session_state.last_result
-  st.markdown(f"### 📋 [문제 {res['round']}] 추상화 분석 결과")
+  if res is None:
+    st.session_state.page = "start"
+    st.rerun()
+
+  round_num = res.get("round", 1)
+  img = res.get("image")
+  kw = res.get("keyword", "")
+  ai_res = res.get("ai_response", "")
+  is_success = res.get("is_success", False)
+
+  st.markdown(f"### 📋 [문제 {round_num}] 추상화 분석 결과")
 
   col_img, col_info = st.columns([1, 1.2])
 
   with col_img:
-    st.image(res["image"], caption="내가 표현한 그림", width=320)
+    if img:
+      st.image(img, caption="내가 표현한 그림", width=320)
 
   with col_info:
     st.write("")
-    
-    # 성공 여부에 따른 분기 메시지 출력
-    if res["is_success"]:
+    if is_success:
       st.success("✨ 핵심 특징 추출(추상화) 성공!")
     else:
       st.error("⚠️ 핵심 특징 추출 실패 또는 통신 오류 발생")
@@ -344,9 +352,9 @@ elif st.session_state.page == "intermediate":
     st.markdown(
         f"""
         <div class="result-text-big" style="background-color: #E0F2F1; padding: 20px; border-radius: 12px; margin-top: 10px; border-left: 6px solid #00838F;">
-            • 목표 제시어: <span style="color: #00838F;"><b>{res['keyword']}</b></span><br><br>
+            • 목표 제시어: <span style="color: #00838F;"><b>{kw}</b></span><br><br>
             • <b>AI 추상화 분석 리포트:</b><br>
-            <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{res['ai_response']}</span>
+            <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{ai_res}</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -383,15 +391,16 @@ elif st.session_state.page == "result":
   st.divider()
 
   for item in st.session_state.history:
-    bg_color = "#E0F2F1" if item["is_success"] else "#FFEBEE"
-    border_color = "#00838F" if item["is_success"] else "#C62828"
-    status_label = "성공" if item["is_success"] else "실패/오류"
+    item_success = item.get("is_success", False)
+    bg_color = "#E0F2F1" if item_success else "#FFEBEE"
+    border_color = "#00838F" if item_success else "#C62828"
+    status_label = "성공" if item_success else "실패/오류"
 
     with st.container():
       st.markdown(
           f"""
             <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
-                <h4>🧩 문제 {item['round']} - 제시어: [{item['keyword']}] ({status_label})</h4>
+                <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
             </div>
             """,
           unsafe_allow_html=True,
@@ -400,14 +409,15 @@ elif st.session_state.page == "result":
       r_col1, r_col2 = st.columns([1, 2])
 
       with r_col1:
-        st.image(item["image"], width=280)
+        if "image" in item:
+          st.image(item["image"], width=280)
 
       with r_col2:
         st.markdown(
             f"""
                 <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
                     <b>🔍 추상화 분석 피드백:</b><br>
-                    {item['ai_response']}
+                    {item.get('ai_response', '')}
                 </div>
                 """,
             unsafe_allow_html=True,
