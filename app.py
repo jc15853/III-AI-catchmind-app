@@ -108,8 +108,9 @@ def ask_gemini_vision(pil_image, keyword, category, api_key):
             f"4. 오직 추론한 '단어' 하나만 정확하게 답변해 주세요. (예: 사과, 동그라미 등)"
         )
 
+        # 최신 모델명으로 변경 반영
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.6-flash',
             contents=[pil_image, prompt]
         )
         if response and response.text:
@@ -135,7 +136,6 @@ if st.session_state.page == 'start':
 
     st.write("")
     
-    # 화면에서 바로 API 키를 입력받는 칸
     st.markdown("### 🔑 구글 Gemini API 키 입력")
     api_key_val = st.text_input("API 키를 입력하세요 (Google AI Studio에서 발급)", type="password", value=st.session_state.api_key_input, placeholder="AIzaSy...")
     st.session_state.api_key_input = api_key_val
