@@ -8,9 +8,8 @@ from google import genai
 from streamlit_drawable_canvas import st_canvas
 
 # -----------------------------------------------------------------------------
-# 0. 구글 서비스 계정 인증 설정 (AQ. 키 오류 우회)
+# 0. 구글 서비스 계정 인증 설정
 # -----------------------------------------------------------------------------
-# GitHub에 업로드한 service_account.json 파일을 환경 변수에 연결합니다.
 json_path = "service_account.json"
 if os.path.exists(json_path):
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = json_path
@@ -101,13 +100,12 @@ def load_keywords():
         return None
 
 def ask_gemini(pil_image, category):
-    """서비스 계정(JSON) 기반 Vertex AI 호출 함수"""
     if not os.path.exists("service_account.json"):
         return "통신 실패: service_account.json 파일 누락"
 
     try:
-        # Vertex AI 클라이언트 초기화 (프로젝트와 리전 설정 필요 시 추가 가능)
-        client = genai.Client()
+        # Vertex AI 환경 설정으로 클라이언트 생성
+        client = genai.Client(vertexai=True)
         
         prompt = (
             f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
@@ -115,8 +113,9 @@ def ask_gemini(pil_image, category):
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
+        # 모델 이름을 표준 명칭으로 변경
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash',
             contents=[pil_image, prompt]
         )
         
