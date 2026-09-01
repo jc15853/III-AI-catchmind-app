@@ -98,34 +98,38 @@ def load_keywords():
         st.error("⚠️ 'keyword.csv' 파일이 필요합니다!")
         return None
 
-def get_gemini_client():
-    """Gemini Client 생성"""
+def ask_gemini(pil_image, category):
+    """Gemini Flash 모델 호출 및 오류 감지"""
+    # 1. API 키 확인
     api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        st.error("⚠️ Streamlit Secrets에 'GEMINI_API_KEY'가 설정되어 있지 않습니다.")
-        return None
-    return genai.Client(api_key=api_key)
-
-def ask_gemini(pil_image, category):
-    """Gemini-2.5-flash 모델 호출"""
-    client = get_gemini_client()
-    if not client:
-        return "통신에 실패했습니다"
-
-    prompt = (
-        f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
-        f"사용자가 그린 그림의 전체적인 '형태'와 '윤곽'에 집중해서 무엇을 그린 것인지 정답을 추론해 주세요.\n"
-        f"★주의사항: 부연 설명 없이 오직 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
-    )
+        return "통신 실패: API 키 미설정"
 
     try:
+        # 2. Gemini 클라이언트 생성
+        client = genai.Client(api_key=api_key)
+        
+        prompt = (
+            f"당신은 캐치마인드 게임의 정답을 맞히는 AI입니다. 제시된 카테고리는 '{category}'입니다.\n"
+            f"사용자가 그린 그림의 전체적인 '형태'와 '윤곽'에 집중해서 무엇을 그린 것인지 정답을 추론해 주세요.\n"
+            f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
+        )
+
+        # 3. 모델 호출
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[pil_image, prompt]
         )
         return response.text.strip()
-    except Exception:
-        return "통신에 실패했습니다"
+    except Exception as e:
+        # 오류 발생 시 구체적인 메시지 리턴
+        err_msg = str(e)
+        if "403" in err_msg or "API_KEY" in err_msg:
+            return "통신 실패: API 키 오류"
+        elif "429" in err_msg:
+            return "통신 실패: 사용량 초과"
+        else:
+            return f"통신 실패 ({err_msg[:30]})"
 
 # -----------------------------------------------------------------------------
 # 3. 화면 1: 시작 화면 (안내 및 카테고리 선택)
@@ -134,7 +138,7 @@ if st.session_state.page == 'start':
     st.markdown("<div class='big-title'>🎨 AI 캐치마인드</div>", unsafe_allow_html=True)
     st.markdown("<div class='sub-title'>내가 그린 그림을 AI가 맞힐 수 있을까요?</div>", unsafe_allow_html=True)
 
-    # 📌 게임 안내 (시작 화면에만 깔끔하게 배치)
+    # 📌 게임 안내
     with st.expander("📖 **게임 방법 및 규칙 안내**", expanded=True):
         st.markdown("""
         1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 그림으로 표현하세요.
@@ -165,7 +169,6 @@ if st.session_state.page == 'start':
                     else:
                         st.session_state.category = cat
                         st.session_state.total_target_questions = target_q
-                        # ⚠️ 중복 방지: 키워드 풀 전체를 무작위로 한 번만 추출
                         st.session_state.quiz_pool = random.sample(filtered, required_count)
                         st.session_state.current_pool_idx = 0
                         st.session_state.solved_count = 0
@@ -176,7 +179,7 @@ if st.session_state.page == 'start':
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 4. 화면 2: 게임 화면 (넓어진 캔버스 & 인터페이스)
+# 4. 화면 2: 게임 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'game':
     pool_idx = st.session_state.current_pool_idx
@@ -191,7 +194,7 @@ elif st.session_state.page == 'game':
     remaining_time = max(0, int(60 - elapsed_time))
     is_time_over = (remaining_time == 0)
 
-    # 상단 요약 바 (가독성 중심으로 간결하게)
+    # 상단 요약 바
     col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
         st.markdown(f"#### 🎯 문제 **{solved_q + 1} / {target_q}**")
@@ -204,7 +207,7 @@ elif st.session_state.page == 'game':
 
     st.write("")
 
-    # 🎨 팔레트 설정 (4가지 선호 색상 + 커스텀 피커)
+    # 🎨 팔레트 설정
     p_col1, p_col2, p_col3, p_col4, p_col5, p_col6 = st.columns([1, 1, 1, 1, 1.5, 2])
     
     with p_col1:
@@ -234,14 +237,14 @@ elif st.session_state.page == 'game':
     with p_col6:
         stroke_width = st.slider("두께", 3, 25, 8, disabled=is_time_over, label_visibility="collapsed")
 
-    # 🖌️ 캔버스 (가로 900px로 확장)
+    # 🖌️ 캔버스 (가로 900px)
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=stroke_width,
         stroke_color=st.session_state.selected_color,
         background_color="#FFFFFF",
         height=400,
-        width=900,  # 태블릿 화면 맞춤 확장
+        width=900,
         drawing_mode="freedraw" if not is_time_over else "transform",
         key=f"canvas_p{pool_idx}",
     )
@@ -266,13 +269,13 @@ elif st.session_state.page == 'game':
             
             st.session_state.solved_count += 1
             st.session_state.current_pool_idx += 1
-            st.session_state.page = 'intermediate'  # 중간 채점 화면으로 이동
+            st.session_state.page = 'intermediate'
             st.rerun()
 
     # 패스 처리 함수
     def process_pass():
         st.session_state.pass_count += 1
-        st.session_state.current_pool_idx += 1  # 키워드 풀의 다음 순번으로 이동 (중복 방지)
+        st.session_state.current_pool_idx += 1
         st.session_state.start_time = time.time()
         st.rerun()
 
@@ -300,7 +303,7 @@ elif st.session_state.page == 'game':
         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 5. 화면 3: 중간 채점 화면 (각 라운드 결과 즉시 확인)
+# 5. 화면 3: 중간 채점 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'intermediate':
     res = st.session_state.last_result
@@ -309,7 +312,6 @@ elif st.session_state.page == 'intermediate':
     col_img, col_info = st.columns([1, 1.2])
     
     with col_img:
-        # 태블릿 화면에서 한눈에 들도록 적당한 너비(320px)로 조절
         st.image(res['image'], caption="내가 그린 그림", width=320)
 
     with col_info:
@@ -317,7 +319,7 @@ elif st.session_state.page == 'intermediate':
         if res['is_correct']:
             st.success("🎉 **정답입니다!** AI가 그림을 완벽히 이해했습니다!")
         else:
-            st.error("❌ **아쉽네요!** AI가 다른 단어로 생각했습니다.")
+            st.error("❌ **아쉽네요!** AI가 정답을 맞히지 못했습니다.")
 
         st.markdown(f"""
         <div class="result-text-big" style="background-color: #F8F9FA; padding: 20px; border-radius: 12px; margin-top: 10px;">
@@ -329,13 +331,12 @@ elif st.session_state.page == 'intermediate':
         st.write("")
         st.write("")
         
-        # 다음 단계 버튼
         if st.session_state.solved_count >= st.session_state.total_target_questions:
             if st.button("🏆 최종 결과 보기"):
                 st.session_state.page = 'result'
                 st.rerun()
         else:
-            if st.button("➡️ 다음 문제로 넘어가지"):
+            if st.button("➡️ 다음 문제로 넘어가기"):
                 st.session_state.start_time = time.time()
                 st.session_state.page = 'game'
                 st.rerun()
@@ -367,7 +368,6 @@ elif st.session_state.page == 'result':
             r_col1, r_col2 = st.columns([1, 2])
             
             with r_col1:
-                # 태블릿 한눈에 들어오는 알맞은 스냅샷 크기 지정
                 st.image(item['image'], width=280)
             
             with r_col2:
