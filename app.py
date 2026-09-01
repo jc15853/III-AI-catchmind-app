@@ -3,7 +3,7 @@ import time
 import random
 import pandas as pd
 import streamlit as st
-from PIL import Image, ImageOps
+from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 
 # -----------------------------------------------------------------------------
@@ -77,7 +77,7 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
-# 3. 헬퍼 함수 정의 (캔버스 투명도 오류 해결형 판정 엔진)
+# 3. 헬퍼 함수 정의 (직선 완벽 차단 판정 엔진)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -93,41 +93,47 @@ def load_keywords():
 
 def evaluate_drawing(pil_image, keyword):
     """
-    캔버스 투명 레이어 문제를 해결하고, 실제 그려진 획의 양과 면적을 정밀 측정합니다.
+    픽셀 수, 크기 분산뿐만 아니라 상관계수(직선 판별)를 이용해 
+    대각선이나 일직선 형태의 낙서를 완벽하게 차단합니다.
     """
     import numpy as np
     
-    # 이미지를 RGB로 강제 변환하여 흰색 배경 합치기
     if pil_image.mode == 'RGBA':
         background = Image.new("RGB", pil_image.size, (255, 255, 255))
-        background.paste(pil_image, mask=pil_image.split()[3]) # 알파 채널 마스크 적용
+        background.paste(pil_image, mask=pil_image.split()[3])
         img_rgb = background
     else:
         img_rgb = pil_image.convert('RGB')
 
     img_array = np.array(img_rgb)
-    
-    # 순수 흰색(255, 255, 255)이 아닌 픽셀만 추출 (그려진 선)
-    # 오차 범위를 주어 연한 색이나 안티앨리어싱 픽셀도 정확히 감지
     drawn_mask = np.any(img_array < 245, axis=-1)
     pixel_coords = np.argwhere(drawn_mask)
     
     total_pixels = len(pixel_coords)
     
-    # 1단계: 최소 그려진 픽셀 수 검사 (최소 800 픽셀 이상은 그려야 함)
+    # 1단계: 최소 픽셀 수 검사
     if total_pixels < 800:
-        return False, "그림이 너무 적습니다! (조금 더 풍성하게 그려주세요)"
+        return False, "그림이 너무 적습니다! (모양을 갖추어 그려주세요)"
     
-    # 2단계: 가로 또는 세로로 단순하게 뻗은 선 형태인지 검사 (퍼져 있는 정도)
     y_coords = pixel_coords[:, 0]
     x_coords = pixel_coords[:, 1]
     
     height_spread = np.max(y_coords) - np.min(y_coords)
     width_spread = np.max(x_coords) - np.min(x_coords)
     
-    # 단일 직선이나 찌꺼기 선 차단 (너비와 높이가 모두 어느 정도 퍼져 있어야 함)
+    # 2단계: 크기 분산 검사
     if height_spread < 50 or width_spread < 50:
         return False, "단순한 선은 정답으로 인정되지 않습니다!"
+
+    # 3단계: 직선(대각선 포함) 판별 알고리즘 (상관계수 분석)
+    if len(x_coords) > 1:
+        x_std = np.std(x_coords)
+        y_std = np.std(y_coords)
+        if x_std > 0 and y_std > 0:
+            correlation = np.corrcoef(x_coords, y_coords)[0, 1]
+            # 상관계수 절대값이 높다는 것은 점들이 일직선으로 배열되어 있음을 의미
+            if abs(correlation) > 0.90:
+                return False, "직선이나 대각선은 정답이 될 수 없어요! 도형을 그려주세요."
 
     return True, keyword
 
@@ -136,12 +142,12 @@ def evaluate_drawing(pil_image, keyword):
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
     st.markdown("<div class='big-title'>🎨 AI 캐치마인드 (안정 모드)</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>투명 캔버스 오류가 해결된 완성형 캐치마인드!</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>직선 완벽 차단 엔진이 적용된 캐치마인드!</div>", unsafe_allow_html=True)
 
     with st.expander("📖 **게임 방법 및 규칙 안내**", expanded=True):
         st.markdown("""
         1. **목표:** 제한 시간(60초) 동안 화면에 나오는 제시어를 그림으로 표현하세요.
-        2. **주의:** 대충 선 하나만 그으면 오답 처리가 되니, 형태를 갖추어 충분히 그려주세요!
+        2. **주의:** 가로/세로/대각선 등 단순한 직선은 무조건 오답 처리됩니다. **모양과 형태**를 갖추어 그려주세요!
         3. **패스 기능:** 그림을 그리기 어렵다면 한 게임당 최대 **2회**까지 패스할 수 있습니다.
         """)
 
@@ -253,7 +259,7 @@ elif st.session_state.page == 'game':
                 'round': solved_q + 1,
                 'keyword': keyword,
                 'image': pil_img,
-                'ai_response': ai_ans if is_correct else "형태 불충분 (선 하나만 그어짐)",
+                'ai_response': ai_ans if is_correct else "직선 형태 감지됨 (오답)",
                 'is_correct': is_correct
             }
 
@@ -310,7 +316,7 @@ elif st.session_state.page == 'intermediate':
         if res['is_correct']:
             st.success("🎉 **정답입니다!** 훌륭한 그림이네요!")
         else:
-            st.error("❌ **오답입니다!** 단순한 선은 정답으로 인정되지 않습니다.")
+            st.error("❌ **오답입니다!** 직선이나 단조로운 선은 인정되지 않습니다.")
 
         st.markdown(f"""
         <div class="result-text-big" style="background-color: #F8F9FA; padding: 20px; border-radius: 12px; margin-top: 10px;">
