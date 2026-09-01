@@ -115,9 +115,9 @@ def ask_gemini(pil_image, category):
             f"★주의사항: 다른 부연 설명이나 문장 없이, 오직 해당 카테고리와 관련된 '한 단어'(예: 사과, 호랑이, 연필 등)로만 답변해 주세요."
         )
 
-        # 3. 모델 호출 (gemini-1.5-flash 모델 사용)
+        # 3. 모델 호출 ('gemini-2.0-flash' 호환 모델로 변경)
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=[pil_image, prompt]
         )
         return response.text.strip()
