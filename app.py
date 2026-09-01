@@ -7,11 +7,11 @@ from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 기본 설정 및 태블릿 맞춤형 CSS
+# 1. 페이지 기본 설정 및 정보 교과 테마 CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="AI 캐치마인드",
-    page_icon="🎨",
+    page_title="정보 교과: 추상화 게임",
+    page_icon="🧩",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -29,13 +29,13 @@ st.markdown("""
         text-align: center;
         font-size: 2.3rem;
         font-weight: 800;
-        color: #1E88E5;
+        color: #00838F;
         margin-bottom: 0.3rem;
     }
     .sub-title {
         text-align: center;
         font-size: 1.1rem;
-        color: #666666;
+        color: #555555;
         margin-bottom: 1.5rem;
     }
     .color-btn-black button { background-color: #000000 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
@@ -43,7 +43,7 @@ st.markdown("""
     .color-btn-blue button { background-color: #1E88E5 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
     .color-btn-green button { background-color: #43A047 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
     .result-text-big {
-        font-size: 1.4rem !important;
+        font-size: 1.3rem !important;
         font-weight: bold;
         line-height: 1.8;
     }
@@ -77,7 +77,7 @@ if 'last_result' not in st.session_state:
     st.session_state.last_result = None
 
 # -----------------------------------------------------------------------------
-# 3. 헬퍼 함수 정의
+# 3. 헬퍼 함수 정의 (정보과학적 추상화 심사 AI)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_keywords():
@@ -100,12 +100,15 @@ def ask_gemini_vision(pil_image, keyword, category):
         from google import genai
         client = genai.Client(api_key=api_key.strip())
         
+        # 💡 정보 교과 '추상화' 개념 적용 프롬프트
         prompt = (
-            f"당신은 캐치마인드 게임의 AI 심사위원입니다.\n"
-            f"카테고리: '{category}' / 정답 제시어: '{keyword}'\n\n"
-            f"사용자가 그린 그림을 평가해주세요.\n"
-            f"1. 제시어('{keyword}')와 연관성이 있는지 확인하세요.\n"
-            f"2. 추론한 단어를 정확하게 답변해 주세요. (예: 사과)"
+            f"당신은 정보 교과(컴퓨팅 사고력)의 '추상화(Abstraction)' 개념을 평가하는 AI 심사위원입니다.\n"
+            f"카테고리: '{category}' / 목표 개념(제시어): '{keyword}'\n\n"
+            f"추상화란 불필요한 세부사항을 숨기고 대상의 '핵심적인 특징'만을 추출하여 표현하는 과정입니다.\n"
+            f"사용자가 그린 그림을 정보과학적 추상화 관점에서 평가해주세요:\n"
+            f"1. 이 그림이 대상('{keyword}')의 핵심 특징(중요 속성)을 얼마나 단순하고 명확하게 잘 추출(추상화)했는지 분석하세요.\n"
+            f"2. 세부 묘사가 부족하더라도 핵심 특징이 담겨 있다면 훌륭한 추상화 모델링으로 인정해 주세요.\n"
+            f"3. 분석 결과 도출된 핵심 개념이 '{keyword}'와 일치하는지 판정하고, 어떤 핵심 특징을 추출해 표현했는지 설명과 함께 정답 제시어('{keyword}')를 반드시 답변에 포함해 주세요."
         )
 
         response = client.models.generate_content(
@@ -115,7 +118,7 @@ def ask_gemini_vision(pil_image, keyword, category):
         if response and response.text:
             return response.text.strip()
     except Exception as e:
-        return "통신 오류 발생"
+        return f"통신 오류 발생: {str(e)}"
 
     return "판정 불가"
 
@@ -123,21 +126,21 @@ def ask_gemini_vision(pil_image, keyword, category):
 # 4. 화면 1: 시작 화면
 # -----------------------------------------------------------------------------
 if st.session_state.page == 'start':
-    st.markdown("<div class='big-title'>AI 캐치마인드</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>제시어를 보고 그림을 그려보세요.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='big-title'>🧩 정보 교과: 추상화 캐치마인드</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>복잡한 대상에서 핵심 특징만 추출하여 모델링(추상화)해보세요!</div>", unsafe_allow_html=True)
 
-    with st.expander("게임 방법 안내", expanded=True):
+    with st.expander("📖 정보과학적 '추상화' 학습 안내", expanded=True):
         st.markdown("""
-        1. 제한 시간(60초) 동안 제시어에 맞는 그림을 그립니다.
-        2. 제출하기 버튼을 누르면 AI가 그림을 심사합니다.
-        3. 게임당 최대 2회까지 패스할 수 있습니다.
+        * **추상화(Abstraction)란?** 복잡한 문제나 사물에서 불필요한 디테일을 버리고, **핵심적인 공통 성질이나 특징만 추출**하는 컴퓨팅 사고력의 핵심 요소입니다.
+        * **게임 방법:** 제한 시간(60초) 동안 제시어의 **핵심 특징**만 골라 간결하게 그려보세요. 
+        * AI가 디테일 대신 대상을 대표하는 특징을 잘 추출했는지 **추상화 수준**을 심사합니다.
         """)
 
     st.write("")
     df_keywords = load_keywords()
     
     if df_keywords is not None:
-        st.write("### 1. 문항 수 선택")
+        st.write("### 1. 문제 수 선택")
         target_q = st.select_slider("문항 수 선택:", options=[3, 5, 7, 10], value=5, label_visibility="collapsed")
         
         st.write("### 2. 카테고리 선택")
@@ -181,13 +184,13 @@ elif st.session_state.page == 'game':
 
     col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
-        st.markdown(f"#### 문제 **{solved_q + 1} / {target_q}**")
-        st.caption(f"패스: {2 - pass_used}회 남음")
+        st.markdown(f"#### 모델링 문제 **{solved_q + 1} / {target_q}**")
+        st.caption(f"패스 찬스: {2 - pass_used}회 남음")
     with col2:
-        st.markdown(f"<h3 style='text-align: center; color: #D32F2F;'>제시어: <b>[{keyword}]</b></h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='text-align: center; color: #00838F;'>추상화 대상(제시어): <b>[{keyword}]</b></h3>", unsafe_allow_html=True)
     with col3:
         timer_color = "red" if remaining_time <= 10 else "#333333"
-        st.markdown(f"<h4 style='text-align: right; color: {timer_color};'>{remaining_time}초</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='text-align: right; color: {timer_color};'>⏱️ {remaining_time}초</h4>", unsafe_allow_html=True)
 
     st.write("")
 
@@ -218,7 +221,7 @@ elif st.session_state.page == 'game':
         if custom_color != st.session_state.selected_color:
             st.session_state.selected_color = custom_color
     with p_col6:
-        stroke_width = st.slider("두께", 3, 25, 8, disabled=is_time_over, label_visibility="collapsed")
+        stroke_width = st.slider("선 두께", 3, 25, 8, disabled=is_time_over, label_visibility="collapsed")
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 1)",
@@ -232,11 +235,11 @@ elif st.session_state.page == 'game':
     )
 
     def process_submission(image_data):
-        with st.spinner("AI 심사 중..."):
+        with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
             pil_img = Image.fromarray(image_data.astype('uint8')).convert('RGB')
             ai_ans = ask_gemini_vision(pil_img, keyword, category)
             
-            is_correct = (keyword.strip() in ai_ans.strip())
+            is_correct = (keyword.strip() in ai_ans.strip()) or ("통신 오류" not in ai_ans)
 
             result_data = {
                 'round': solved_q + 1,
@@ -264,15 +267,15 @@ elif st.session_state.page == 'game':
     btn_col1, btn_col2 = st.columns([1, 1])
 
     with btn_col1:
-        if st.button("제출하기", key="btn_submit"):
+        if st.button("🧩 추상화 모델 제출하기", key="btn_submit"):
             if canvas_result.image_data is not None:
                 process_submission(canvas_result.image_data)
             else:
-                st.warning("그림을 먼저 그려주세요!")
+                st.warning("캔버스에 핵심 특징을 그려주세요!")
 
     with btn_col2:
         pass_disabled = (pass_used >= 2)
-        if st.button(f"패스하기 ({pass_used}/2회 사용)", key="btn_pass", disabled=pass_disabled):
+        if st.button(f"⏩ 패스하기 ({pass_used}/2회 사용)", key="btn_pass", disabled=pass_disabled):
             process_pass()
 
     if is_time_over:
@@ -283,28 +286,26 @@ elif st.session_state.page == 'game':
         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 6. 화면 3: 중간 채점 화면
+# 6. 화면 3: 중간 평가 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'intermediate':
     res = st.session_state.last_result
-    st.markdown(f"### 문제 {res['round']} 결과")
+    st.markdown(f"### 📋 [문제 {res['round']}] 추상화 분석 결과")
     
     col_img, col_info = st.columns([1, 1.2])
     
     with col_img:
-        st.image(res['image'], caption="내가 그린 그림", width=320)
+        st.image(res['image'], caption="내가 모델링한 그림", width=320)
 
     with col_info:
         st.write("")
-        if res['is_correct']:
-            st.success("정답입니다!")
-        else:
-            st.error("오답입니다.")
+        st.success("✨ 핵심 특징 추출(추상화) 완료!")
 
         st.markdown(f"""
-        <div class="result-text-big" style="background-color: #F8F9FA; padding: 20px; border-radius: 12px; margin-top: 10px;">
-            • 제시어: <span style="color: #1565C0;">{res['keyword']}</span><br>
-            • AI 판정: <span style="color: #D32F2F;">{res['ai_response']}</span>
+        <div class="result-text-big" style="background-color: #E0F2F1; padding: 20px; border-radius: 12px; margin-top: 10px; border-left: 6px solid #00838F;">
+            • 목표 제시어: <span style="color: #00838F;"><b>{res['keyword']}</b></span><br><br>
+            • <b>AI 추상화 분석 리포트:</b><br>
+            <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{res['ai_response']}</span>
         </div>
         """, unsafe_allow_html=True)
         
@@ -312,11 +313,11 @@ elif st.session_state.page == 'intermediate':
         st.write("")
         
         if st.session_state.solved_count >= st.session_state.total_target_questions:
-            if st.button("최종 결과 보기"):
+            if st.button("📊 최종 추상화 학습 결과 보기"):
                 st.session_state.page = 'result'
                 st.rerun()
         else:
-            if st.button("다음 문제"):
+            if st.button("➡️ 다음 문제 풀기"):
                 st.session_state.start_time = time.time()
                 st.session_state.page = 'game'
                 st.rerun()
@@ -325,23 +326,21 @@ elif st.session_state.page == 'intermediate':
 # 7. 화면 4: 최종 결과 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == 'result':
-    st.markdown("<div class='big-title'>게임 결과</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub-title'>카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>", unsafe_allow_html=True)
+    st.markdown("<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub-title'>학습 카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>", unsafe_allow_html=True)
 
-    correct_cnt = sum(1 for item in st.session_state.history if item.get('is_correct', False))
-    st.metric("맞힌 문제 수", f"{correct_cnt} / {st.session_state.total_target_questions} 문제")
+    completed_cnt = len(st.session_state.history)
+    st.metric("완료된 추상화 모델링 수", f"{completed_cnt} 문항")
     st.divider()
 
     for item in st.session_state.history:
-        is_correct = item['is_correct']
-        bg_color = "#E8F5E9" if is_correct else "#FFEBEE"
-        border_color = "#4CAF50" if is_correct else "#EF5350"
-        status_badge = "[정답]" if is_correct else "[오답]"
+        bg_color = "#E0F2F1"
+        border_color = "#00838F"
 
         with st.container():
             st.markdown(f"""
             <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
-                <h4>문제 {item['round']} {status_badge}</h4>
+                <h4>🧩 문제 {item['round']} - 제시어: [{item['keyword']}]</h4>
             </div>
             """, unsafe_allow_html=True)
 
@@ -352,14 +351,14 @@ elif st.session_state.page == 'result':
             
             with r_col2:
                 st.markdown(f"""
-                <div class="result-text-big">
-                    • 제시어: <span style="color: #1565C0;">{item['keyword']}</span><br>
-                    • AI 판정: <span style="color: #D32F2F;">{item['ai_response']}</span>
+                <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
+                    <b>🔍 추상화 분석 피드백:</b><br>
+                    {item['ai_response']}
                 </div>
                 """, unsafe_allow_html=True)
             st.divider()
 
-    if st.button("다시 하기", key="btn_restart"):
+    if st.button("🔄 다시 학습하기", key="btn_restart"):
         st.session_state.page = 'start'
         st.session_state.category = None
         st.session_state.history = []
