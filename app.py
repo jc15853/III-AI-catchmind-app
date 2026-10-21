@@ -200,4 +200,155 @@ if st.session_state.page == "start":
                         st.session_state.solved_count = 0
                         st.session_state.pass_count = 0
                         st.session_state.history = []
-                        st.
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+
+# -----------------------------------------------------------------------------
+# 2. 화면 2: 게임 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "game":
+    render_top_bar()
+
+    pool_idx = st.session_state.current_pool_idx
+    keyword = st.session_state.quiz_pool[pool_idx]
+    category = st.session_state.category
+    target_q = st.session_state.total_target_questions
+    solved_q = st.session_state.solved_count
+    pass_used = st.session_state.pass_count
+
+    elapsed_time = time.time() - st.session_state.start_time
+    remaining_time = max(0, int(60 - elapsed_time))
+    is_time_over = remaining_time == 0
+
+    col1, col2, col3 = st.columns([1.2, 2, 1.2])
+    with col1:
+        st.markdown(f"#### 추상화 문제 **{solved_q + 1} / {target_q}**")
+        st.caption(f"패스 찬스: {2 - pass_used}회 남음")
+    with col2:
+        st.markdown(
+            f"<h3 style='text-align: center; color: #00838F;'>추상화 대상(제시어): <b>[{keyword}]</b></h3>",
+            unsafe_allow_html=True,
+        )
+    with col3:
+        timer_color = "red" if remaining_time <= 10 else "#333333"
+        st.markdown(
+            f"<h4 style='text-align: right; color: {timer_color};'>⏱️ 남은 시간: {remaining_time}초</h4>",
+            unsafe_allow_html=True,
+        )
+
+    st.write("")
+    st.info("💡 아래 그림판에 마우스나 터치로 직접 그림을 그린 후 **[제출하기]**를 눌러주세요!")
+
+    paint_html_template = """
+    <div style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+        <div style="margin-bottom: 10px; display: flex; gap: 15px; align-items: center;">
+            <div>
+                <label style="font-size: 14px; font-weight: bold; margin-right: 5px;">펜 색상:</label>
+                <input type="color" id="colPick" value="#000000" style="width: 45px; height: 30px; border:none; cursor:pointer; vertical-align: middle;">
+            </div>
+            <div>
+                <label style="font-size: 14px; font-weight: bold; margin-right: 5px;">선 두께:</label>
+                <input type="range" id="sizeRange" min="2" max="25" value="6" style="vertical-align: middle;">
+            </div>
+            <button onclick="clearArea()" style="margin-left: auto; padding: 6px 14px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">전체 지우기</button>
+        </div>
+        <canvas id="myCanvas_PLACEHOLDER" width="850" height="380" style="background: white; border: 2px solid #cbd5e1; border-radius: 8px; cursor: crosshair; display: block;"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('myCanvas_PLACEHOLDER');
+        const ctx = canvas.getContext('2d');
+        let painting = false;
+
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        function startDraw(e) {
+            painting = true;
+            draw(e);
+        }
+        function endDraw() {
+            painting = false;
+            ctx.beginPath();
+            updatePython();
+        }
+        function draw(e) {
+            if (!painting) return;
+            ctx.lineWidth = document.getElementById('sizeRange').value;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = document.getElementById('colPick').value;
+
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            if (clientX === undefined) return;
+
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mouseup', endDraw);
+        canvas.addEventListener('mousemove', draw);
+
+        canvas.addEventListener('touchstart', (e) => { startDraw(e.touches[0]); e.preventDefault(); });
+        canvas.addEventListener('touchend', () => { endDraw(); });
+        canvas.addEventListener('touchmove', (e) => { draw(e.touches[0]); e.preventDefault(); });
+
+        function clearArea() {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            updatePython();
+        }
+
+        function updatePython() {
+            const dataURL = canvas.toDataURL('image/png');
+            if (window.Streamlit) {
+                window.Streamlit.setComponentValue(dataURL);
+            }
+        }
+    </script>
+    """
+    paint_html = paint_html_template.replace("PLACEHOLDER", str(pool_idx))
+
+    canvas_value = components.html(paint_html, height=450)
+
+    def process_pass():
+        st.session_state.pass_count += 1
+        st.session_state.current_pool_idx += 1
+        st.session_state.start_time = time.time()
+        st.rerun()
+
+    st.write("")
+    btn_col1, btn_col2 = st.columns([1, 1])
+
+    with btn_col1:
+        if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
+            pil_img = None
+            if canvas_value and isinstance(canvas_value, str) and "," in canvas_value:
+                try:
+                    header, encoded = canvas_value.split(",", 1)
+                    image_data = base64.b64decode(encoded)
+                    pil_img = Image.open(io.BytesIO(image_data)).convert("RGB")
+                except Exception:
+                    pass
+
+            if pil_img is None:
+                pil_img = Image.new("RGB", (850, 380), "white")
+
+            with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
+                is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+
+                has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
+                if has_error:
+                    is_success = False
+
+                result_data = {
+                    "round":
