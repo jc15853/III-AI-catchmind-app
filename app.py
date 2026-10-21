@@ -228,7 +228,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (그림판 감춤/오류 완전 수정)
+# 2. 화면 2: 게임 화면 (st.form을 이용한 완벽한 캔버스 데이터 동기화)
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -300,29 +300,38 @@ elif st.session_state.page == "game":
             "선 두께", 3, 25, 8, key=f"slider_{pool_idx}", label_visibility="collapsed"
         )
 
-    # 🎨 캔버스 (고유 key 고정으로 절대 사라지지 않도록 방어)
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 255, 255, 1)",
-        stroke_width=stroke_width,
-        stroke_color=st.session_state.selected_color,
-        background_color="#FFFFFF",
-        height=400,
-        width=900,
-        drawing_mode="freedraw",
-        key=f"canvas_drawing_area_{pool_idx}",
-    )
+    # 🎨 st.form으로 캔버스와 제출 버튼을 묶어 데이터 유실 및 에러 원천 차단
+    with st.form(key=f"drawing_form_{pool_idx}"):
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 255, 255, 1)",
+            stroke_width=stroke_width,
+            stroke_color=st.session_state.selected_color,
+            background_color="#FFFFFF",
+            height=400,
+            width=900,
+            drawing_mode="freedraw",
+            key=f"canvas_drawing_area_{pool_idx}",
+        )
+        
+        submitted = st.form_submit_button("🧩 추상화 결과 제출하기", use_container_width=True)
 
-    # 제출 처리 함수
-    def process_submission():
+    def process_pass():
+        st.session_state.pass_count += 1
+        st.session_state.current_pool_idx += 1
+        st.session_state.start_time = time.time()
+        st.rerun()
+
+    # 폼 제출이 발생했을 때 처리
+    if submitted:
         try:
             if canvas_result.image_data is not None:
                 image_data = canvas_result.image_data
             else:
-                st.warning("⚠️ 캔버스 데이터를 가져오는 중입니다. 핵심 특징을 그린 후 제출해 주세요.")
-                return
+                st.warning("⚠️ 캔버스 데이터가 비어 있습니다. 그림을 그려주세요.")
+                st.stop()
         except Exception:
-            st.warning("⚠️ 그림을 인식하는 중입니다. 선을 한 번 더 살짝 그리고 제출해 주세요!")
-            return
+            st.warning("⚠️ 그림 인식 중 오류가 발생했습니다. 다시 시도해 주세요.")
+            st.stop()
 
         with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
             pil_img = Image.fromarray(image_data.astype("uint8")).convert("RGB")
@@ -348,27 +357,16 @@ elif st.session_state.page == "game":
             st.session_state.page = "intermediate"
             st.rerun()
 
-    def process_pass():
-        st.session_state.pass_count += 1
-        st.session_state.current_pool_idx += 1
-        st.session_state.start_time = time.time()
-        st.rerun()
-
+    # 패스하기 버튼 (폼 바깥에 위치)
     st.write("")
-    btn_col1, btn_col2 = st.columns([1, 1])
-
-    with btn_col1:
-        if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}"):
-            process_submission()
-
-    with btn_col2:
-        pass_disabled = pass_used >= 2
-        if st.button(
-            f"⏩ 패스하기 ({pass_used}/2회 사용)",
-            key=f"btn_pass_{pool_idx}",
-            disabled=pass_disabled,
-        ):
-            process_pass()
+    pass_disabled = pass_used >= 2
+    if st.button(
+        f"⏩ 패스하기 ({pass_used}/2회 사용)",
+        key=f"btn_pass_{pool_idx}",
+        disabled=pass_disabled,
+        use_container_width=True,
+    ):
+        process_pass()
 
     if is_time_over:
-        st.error("⏰ 제한 시간이 초과되었습니다! 위에 그린 그림을 제출하거나 패스해 주세요.")
+        st.error("⏰ 제한 시간이 초과되었습니다! 그림을 제출하거나 패스해 주세요.")
