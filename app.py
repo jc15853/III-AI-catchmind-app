@@ -290,9 +290,8 @@ elif st.session_state.page == "game":
         )
 
     st.write("")
-    st.info(f"💡 아래 캔버스에 **[{keyword}]**의 핵심 특징을 직접 그려주세요! (RuntimeError 방지 및 정확한 그림 인식 적용)")
+    st.info(f"💡 아래 캔버스에 **[{keyword}]**의 핵심 특징을 직접 그려주세요!")
 
-    # 원본 툴바 레이아웃 (색상, 선 두께, 모드 선택)
     t_col1, t_col2, t_col3, t_col4 = st.columns([1, 1, 1, 2])
     with t_col1:
         stroke_color = st.color_picker("펜 색상", "#000000", key=f"color_{pool_idx}")
@@ -323,7 +322,6 @@ elif st.session_state.page == "game":
 
     with btn_col1:
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
-            # RuntimeError를 유발하는 image_data 대신, 안전한 json_data 기반 복원 함수 호출
             pil_img = get_drawn_image(canvas_result)
 
             with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
@@ -385,43 +383,4 @@ elif st.session_state.page == "intermediate":
 
     with col_img:
         if img:
-            st.image(img, caption="내가 표현한 그림", width=320)
-
-    with col_info:
-        st.write("")
-        if is_success:
-            st.success("✨ 핵심 특징 추출(추상화) 성공!")
-        else:
-            st.error("⚠️ 핵심 특징 추출 실패 (다시 도전해 보세요!)")
-
-        st.markdown(
-            f"""
-            <div class="result-text-big" style="background-color: #E0F2F1; padding: 20px; border-radius: 12px; margin-top: 10px; border-left: 6px solid #00838F;">
-                • 목표 제시어: <span style="color: #00838F;"><b>{kw}</b></span><br><br>
-                • <b>AI 분석 결과:</b><br>
-                <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{ai_res}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.write("")
-        st.write("")
-
-        if st.session_state.solved_count >= st.session_state.total_target_questions:
-            if st.button("📊 최종 추상화 학습 결과 보기"):
-                st.session_state.page = "result"
-                st.rerun()
-        else:
-            if not is_success:
-                b_col1, b_col2 = st.columns(2)
-                with b_col1:
-                    if st.button("🔄 다시 시도하기"):
-                        st.session_state.history.pop()
-                        st.session_state.solved_count -= 1
-                        st.session_state.current_pool_idx -= 1
-                        st.session_state.start_time = time.time()
-                        st.session_state.page = "game"
-                        st.rerun()
-                with b_col2:
-                    if st.button("➡️ 다음 문제
+            st.image(img, caption="내가 표현한 그림", width=32
