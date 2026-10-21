@@ -102,13 +102,38 @@ def load_keywords():
     file_path = "keyword.csv"
     if os.path.exists(file_path):
         try:
-            return pd.read_csv(file_path, encoding="utf-8-sig")
-        except UnicodeDecodeError:
-            return pd.read_csv(file_path, encoding="cp949")
+            # 인코딩 자동 처리로 파일 읽기
+            for enc in ["utf-8-sig", "cp949", "euc-kr"]:
+                try:
+                    df = pd.read_csv(file_path, encoding=enc)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            
+            # 컬럼명을 소문자로 통일하고 공백 제거
+            df.columns = [str(col).strip().lower() for col in df.columns]
+            
+            # 한글 헤더나 영문 헤더 모두 표준("category", "keyword")으로 자동 변환
+            rename_map = {}
+            for col in df.columns:
+                if "카테고리" in col or "cat" in col:
+                    rename_map[col] = "category"
+                elif "키워드" in col or "word" in col or "제시어" in col:
+                    rename_map[col] = "keyword"
+            
+            df = df.rename(columns=rename_map)
+            
+            # 필수 컬럼이 있는지 확인
+            if "category" not in df.columns or "keyword" not in df.columns:
+                st.error("⚠️ 'keyword.csv' 파일의 열 이름에 'category'와 'keyword'(또는 카테고리, 키워드)가 포함되어 있어야 합니다.")
+                return None
+                
+            return df
+        except Exception as e:
+            st.error(f"⚠️ keyword.csv 파일을 읽는 중 오류가 발생했습니다: {e}")
+            return None
     else:
-        st.error(
-            "⚠️ 'keyword.csv' 파일이 같은 폴더에 존재하지 않습니다! 파일을 확인해 주세요."
-        )
+        st.error("⚠️ 'keyword.csv' 파일이 같은 폴더에 존재하지 않습니다! 파일을 확인해 주세요.")
         return None
 
 
