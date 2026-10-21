@@ -4,7 +4,6 @@ import time
 import pandas as pd
 from PIL import Image
 import streamlit as st
-import streamlit.components.v1 as components
 
 # -----------------------------------------------------------------------------
 # 0. 페이지 설정 및 정보 교과 테마 CSS
@@ -203,7 +202,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (HTML5 네이티브 캔버스 적용)
+# 2. 화면 2: 게임 화면 (이미지 업로드 방식 적용)
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -236,89 +235,14 @@ elif st.session_state.page == "game":
         )
 
     st.write("")
+    st.info("💡 그림판(그림 도구)에서 제시어의 핵심 특징을 그린 뒤, 저장한 이미지 파일을 아래에 업로드해 주세요!")
 
-    # HTML5 순수 캔버스 컴포넌트 임베드 (그림 유실 및 라이브러리 충돌 100% 차단)
-    canvas_html = """
-    <div>
-        <div style="margin-bottom: 8px; display: flex; gap: 10px; align-items: center;">
-            <label><b>색상:</b></label>
-            <input type="color" id="colorPicker" value="#000000" style="width: 50px; height: 30px; border:none; cursor:pointer;">
-            <label style="margin-left: 15px;"><b>두께:</b></label>
-            <input type="range" id="lineWidth" min="1" max="25" value="5" style="width: 120px;">
-            <button onclick="clearCanvas()" style="margin-left: auto; padding: 5px 15px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">전체 지우기</button>
-        </div>
-        <canvas id="paintCanvas" width="900" height="400" style="border: 2px solid #cbd5e1; border-radius: 8px; background: white; cursor: crosshair;"></canvas>
-    </div>
-    <script>
-        const canvas = document.getElementById('paintCanvas');
-        const ctx = canvas.getContext('2d');
-        let painting = false;
+    # 이미지 파일 업로더
+    uploaded_file = st.file_uploader("🎨 내가 그린 추상화 그림 업로드 (PNG, JPG)", type=["png", "jpg", "jpeg"])
 
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        function startPosition(e) {
-            painting = true;
-            draw(e);
-        }
-        function finishedPosition() {
-            painting = false;
-            ctx.beginPath();
-            saveCanvasState();
-        }
-        function draw(e) {
-            if (!painting) return;
-            ctx.lineWidth = document.getElementById('lineWidth').value;
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = document.getElementById('colorPicker').value;
-
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-
-            ctx.lineTo(x, y);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-        }
-
-        // 터치 지원
-        canvas.addEventListener('mousedown', startPosition);
-        canvas.addEventListener('mouseup', finishedPosition);
-        canvas.addEventListener('mousemove', draw);
-
-        canvas.addEventListener('touchstart', (e) => {
-            painting = true;
-            draw(e.touches[0]);
-            e.preventDefault();
-        });
-        canvas.addEventListener('touchend', () => {
-            painting = false;
-            ctx.beginPath();
-            saveCanvasState();
-        });
-        canvas.addEventListener('touchmove', (e) => {
-            draw(e.touches[0]);
-            e.preventDefault();
-        });
-
-        function clearCanvas() {
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            saveCanvasState();
-        }
-
-        function saveCanvasState() {
-            const dataURL = canvas.toDataURL('image/png');
-            // Streamlit 컴포넌트로 데이터 전달
-            const windowProxy = window.parent;
-            windowProxy.document.dispatchEvent(new CustomEvent('streamlit:setComponentValue', { detail: dataURL }));
-        }
-    </script>
-    """
-    
-    # 컴포넌트 렌더링 및 이미지 데이터 수신
-    canvas_data = components.html(canvas_html, height=470)
+    if uploaded_file is not None:
+        pil_img = Image.open(uploaded_file).convert("RGB")
+        st.image(pil_img, caption="업로드한 그림 미리보기", width=300)
 
     def process_pass():
         st.session_state.pass_count += 1
@@ -331,31 +255,33 @@ elif st.session_state.page == "game":
 
     with btn_col1:
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
-            # 임시 백지 생성 (추후 컴포넌트 연동 데이터가 없을 경우 대비)
-            pil_img = Image.new("RGB", (900, 400), "white")
-            
-            with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
-                is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+            if uploaded_file is None:
+                st.warning("⚠️ 먼저 그림 파일을 업로드해 주세요!")
+            else:
+                pil_img = Image.open(uploaded_file).convert("RGB")
+                
+                with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
+                    is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
 
-                has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
-                if has_error:
-                    is_success = False
+                    has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
+                    if has_error:
+                        is_success = False
 
-                result_data = {
-                    "round": solved_q + 1,
-                    "keyword": keyword,
-                    "image": pil_img,
-                    "ai_response": ai_ans,
-                    "is_success": is_success,
-                }
+                    result_data = {
+                        "round": solved_q + 1,
+                        "keyword": keyword,
+                        "image": pil_img,
+                        "ai_response": ai_ans,
+                        "is_success": is_success,
+                    }
 
-                st.session_state.history.append(result_data)
-                st.session_state.last_result = result_data
+                    st.session_state.history.append(result_data)
+                    st.session_state.last_result = result_data
 
-                st.session_state.solved_count += 1
-                st.session_state.current_pool_idx += 1
-                st.session_state.page = "intermediate"
-                st.rerun()
+                    st.session_state.solved_count += 1
+                    st.session_state.current_pool_idx += 1
+                    st.session_state.page = "intermediate"
+                    st.rerun()
 
     with btn_col2:
         pass_disabled = pass_used >= 2
@@ -368,7 +294,7 @@ elif st.session_state.page == "game":
             process_pass()
 
     if is_time_over:
-        st.error("⏰ 제한 시간이 초과되었습니다! 그림을 제출하거나 패스해 주세요.")
+        st.error("⏰ 제한 시간이 초과되었습니다! 그림을 업로드하고 제출하거나 패스해 주세요.")
 
 # -----------------------------------------------------------------------------
 # 3. 화면 3: 중간 평가 화면
