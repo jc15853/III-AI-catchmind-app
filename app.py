@@ -348,3 +348,139 @@ elif st.session_state.page == "game":
                 st.rerun()
 
     with btn_col2:
+        pass_disabled = pass_used >= 2
+        if st.button(
+            f"⏩ 패스하기 ({pass_used}/2회 사용)",
+            key=f"btn_pass_{pool_idx}",
+            disabled=pass_disabled,
+            use_container_width=True,
+        ):
+            process_pass()
+
+    if is_time_over:
+        st.error("⏰ 제한 시간이 초과되었습니다! 그림을 제출하거나 패스해 주세요.")
+
+# -----------------------------------------------------------------------------
+# 3. 화면 3: 중간 평가 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "intermediate":
+    render_top_bar()
+
+    res = st.session_state.last_result
+    if res is None:
+        st.session_state.page = "start"
+        st.rerun()
+
+    round_num = res.get("round", 1)
+    img = res.get("image")
+    kw = res.get("keyword", "")
+    ai_res = res.get("ai_response", "")
+    is_success = res.get("is_success", False)
+
+    st.markdown(f"### 📋 [문제 {round_num}] 추상화 분석 결과")
+
+    col_img, col_info = st.columns([1, 1.2])
+
+    with col_img:
+        if img:
+            st.image(img, caption="내가 표현한 그림", width=320)
+
+    with col_info:
+        st.write("")
+        if is_success:
+            st.success("✨ 핵심 특징 추출(추상화) 성공!")
+        else:
+            st.error("⚠️ 핵심 특징 추출 실패 (다시 도전해 보세요!)")
+
+        st.markdown(
+            f"""
+            <div class="result-text-big" style="background-color: #E0F2F1; padding: 20px; border-radius: 12px; margin-top: 10px; border-left: 6px solid #00838F;">
+                • 목표 제시어: <span style="color: #00838F;"><b>{kw}</b></span><br><br>
+                • <b>AI 분석 결과:</b><br>
+                <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{ai_res}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.write("")
+        st.write("")
+
+        if st.session_state.solved_count >= st.session_state.total_target_questions:
+            if st.button("📊 최종 추상화 학습 결과 보기"):
+                st.session_state.page = "result"
+                st.rerun()
+        else:
+            if not is_success:
+                b_col1, b_col2 = st.columns(2)
+                with b_col1:
+                    if st.button("🔄 다시 시도하기"):
+                        st.session_state.history.pop()
+                        st.session_state.solved_count -= 1
+                        st.session_state.current_pool_idx -= 1
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+                with b_col2:
+                    if st.button("➡️ 다음 문제 풀기"):
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+            else:
+                if st.button("➡️ 다음 문제 풀기"):
+                    st.session_state.start_time = time.time()
+                    st.session_state.page = "game"
+                    st.rerun()
+
+# -----------------------------------------------------------------------------
+# 4. 화면 4: 최종 결과 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "result":
+    render_top_bar()
+
+    st.markdown(
+        "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div class='sub-title'>학습 카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>",
+        unsafe_allow_html=True,
+    )
+
+    completed_cnt = len(st.session_state.history)
+    st.metric("완료된 문항 수", f"{completed_cnt} 문항")
+    st.divider()
+
+    for item in st.session_state.history:
+        item_success = item.get("is_success", False)
+        bg_color = "#E0F2F1" if item_success else "#FFEBEE"
+        border_color = "#00838F" if item_success else "#C62828"
+        status_label = "성공" if item_success else "실패"
+
+        with st.container():
+            st.markdown(
+                f"""
+                <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
+                    <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            r_col1, r_col2 = st.columns([1, 2])
+
+            with r_col1:
+                if "image" in item:
+                    st.image(item["image"], width=280)
+
+            with r_col2:
+                st.markdown(
+                    f"""
+                    <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
+                        <b>🔍 AI 분석 피드백:</b><br>
+                        {item.get('ai_response', '')}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            st
