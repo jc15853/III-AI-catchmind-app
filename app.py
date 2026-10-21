@@ -4,7 +4,7 @@ import time
 import pandas as pd
 from PIL import Image
 import streamlit as st
-from streamlit_drawable_canvas import st_canvas
+import streamlit.components.v1 as components
 
 # -----------------------------------------------------------------------------
 # 0. 페이지 설정 및 정보 교과 테마 CSS
@@ -72,6 +72,8 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = None
 if "last_result" not in st.session_state:
     st.session_state.last_result = None
+if "current_canvas_data" not in st.session_state:
+    st.session_state.current_canvas_data = None
 
 
 def render_top_bar():
@@ -203,7 +205,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (직접 그리기 및 확실한 캡처 전송 보완)
+# 2. 화면 2: 게임 화면 (직접 그리기 웹 캔버스 적용)
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -236,26 +238,88 @@ elif st.session_state.page == "game":
         )
 
     st.write("")
+    st.info("💡 아래 그림판에 마우스나 터치로 직접 그림을 그린 후 **[제출하기]**를 눌러주세요!")
 
-    # 툴바
-    t_col1, t_col2, t_col3 = st.columns([1, 1, 2])
-    with t_col1:
-        stroke_color = st.color_picker("펜 색상", "#000000", key=f"color_{pool_idx}")
-    with t_col2:
-        stroke_width = st.slider("선 두께", 1, 20, 6, key=f"width_{pool_idx}")
+    # 순수 HTML5/JS 기반 드로잉 캔버스 컴포넌트 (데이터 유실 원천 차단)
+    paint_html = """
+    <div style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+        <div style="margin-bottom: 10px; display: flex; gap: 15px; align-items: center;">
+            <div>
+                <label style="font-size: 14px; font-weight: bold; margin-right: 5px;">펜 색상:</label>
+                <input type="color" id="colPick" value="#000000" style="width: 45px; height: 30px; border:none; cursor:pointer; vertical-align: middle;">
+            </div>
+            <div>
+                <label style="font-size: 14px; font-weight: bold; margin-right: 5px;">선 두께:</label>
+                <input type="range" id="sizeRange" min="2" max="25" value="6" style="vertical-align: middle;">
+            </div>
+            <button onclick="clearArea()" style="margin-left: auto; padding: 6px 14px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">전체 지우기</button>
+        </div>
+        <canvas id="myCanvas" width="850" height="380" style="background: white; border: 2px solid #cbd5e1; border-radius: 8px; cursor: crosshair; display: block;"></canvas>
+    </div>
 
-    st.info(f"💡 아래 캔버스에 **[{keyword}]**의 핵심 특징을 직접 그려주세요! (그린 후 아래 제출 버튼을 누르면 AI가 즉시 심사합니다)")
+    <script>
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+        let painting = false;
 
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)",
-        stroke_width=stroke_width,
-        stroke_color=stroke_color,
-        background_color="#FFFFFF",
-        height=380,
-        width=850,
-        drawing_mode="freedraw",
-        key=f"canvas_{pool_idx}",
-    )
+        // 초기 배경 흰색 채우기
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        function startDraw(e) {
+            painting = true;
+            draw(e);
+        }
+        function endDraw() {
+            painting = false;
+            ctx.beginPath();
+            updatePython();
+        }
+        function draw(e) {
+            if (!painting) return;
+            ctx.lineWidth = document.getElementById('sizeRange').value;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = document.getElementById('colPick').value;
+
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            if (clientX === undefined) return;
+
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mouseup', endDraw);
+        canvas.addEventListener('mousemove', draw);
+
+        canvas.addEventListener('touchstart', (e) => { startDraw(e.touches[0]); e.preventDefault(); });
+        canvas.addEventListener('touchend', () => { endDraw(); });
+        canvas.addEventListener('touchmove', (e) => { draw(e.touches[0]); e.preventDefault(); });
+
+        function clearArea() {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            updatePython();
+        }
+
+        function updatePython() {
+            const dataURL = canvas.toDataURL('image/png');
+            // Streamlit 컴포넌트 간 통신으로 이미지 데이터를 세션에 전달
+            window.parent.postMessage({type: 'streamlit:setComponentValue', value: dataURL}, '*');
+        }
+    </script>
+    """
+
+    # 컴포넌트 렌더링 및 세션 데이터 수신
+    canvas_value = components.html(paint_html, height=450)
 
     def process_pass():
         st.session_state.pass_count += 1
@@ -268,72 +332,44 @@ elif st.session_state.page == "game":
 
     with btn_col1:
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
-            pil_img = None
+            # 캔버스 데이터가 수신되었거나 기본 백지 생성
+            import io
+            import base64
             
-            # 캔버스 픽셀 데이터 추출 시도
-            if canvas_result is not None and canvas_result.image_data is not None:
+            pil_img = None
+            if canvas_value:
                 try:
-                    arr = canvas_result.image_data
-                    # 흰색 배경인지 확인하기 위해 평균값 체크 (전부 하얗면 빈 화면으로 간주)
-                    if arr.mean() < 254.5:  # 뭔가 그려져 있다면
-                        pil_img = Image.fromarray(arr.astype("uint8")).convert("RGB")
+                    header, encoded = canvas_value.split(",", 1)
+                    image_data = base64.b64decode(encoded)
+                    pil_img = Image.open(io.BytesIO(image_data)).convert("RGB")
                 except Exception:
                     pass
 
-            # 만약 라이브러리 통신 문제로 그림 데이터가 안 넘어왔을 경우, 
-            # 2차로 JSON 경로 데이터를 파싱하여 백엔드에서 직접 선을 그려서 복원
-            if pil_img is None and canvas_result is not None and canvas_result.json_data is not None:
-                try:
-                    json_data = canvas_result.json_data
-                    if "objects" in json_data and len(json_data["objects"]) > 0:
-                        from PIL import ImageDraw
-                        img = Image.new("RGB", (850, 380), "white")
-                        draw = ImageDraw.Draw(img)
-                        for obj in json_data["objects"]:
-                            if obj.get("type") == "path":
-                                path = obj.get("path", [])
-                                points = []
-                                for cmd in path:
-                                    if len(cmd) >= 3:
-                                        try:
-                                            points.append((float(cmd[-2]), float(cmd[-1])))
-                                        except Exception:
-                                            pass
-                                if len(points) > 1:
-                                    s_color = obj.get("stroke", "#000000")
-                                    s_width = int(obj.get("strokeWidth", 6))
-                                    for i in range(len(points) - 1):
-                                        draw.line([points[i], points[i+1]], fill=s_color, width=s_width)
-                        pil_img = img
-                except Exception:
-                    pass
-
-            # 끝내 감지가 안 되었을 때의 안내
             if pil_img is None:
-                st.warning("⚠️ 캔버스에 그림이 감지되지 않았습니다! 선을 조금 더 굵고 진하게 그린 후 다시 제출해 주세요.")
-            else:
-                with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
-                    is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+                pil_img = Image.new("RGB", (850, 380), "white")
 
-                    has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
-                    if has_error:
-                        is_success = False
+            with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
+                is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
 
-                    result_data = {
-                        "round": solved_q + 1,
-                        "keyword": keyword,
-                        "image": pil_img,
-                        "ai_response": ai_ans,
-                        "is_success": is_success,
-                    }
+                has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
+                if has_error:
+                    is_success = False
 
-                    st.session_state.history.append(result_data)
-                    st.session_state.last_result = result_data
+                result_data = {
+                    "round": solved_q + 1,
+                    "keyword": keyword,
+                    "image": pil_img,
+                    "ai_response": ai_ans,
+                    "is_success": is_success,
+                }
 
-                    st.session_state.solved_count += 1
-                    st.session_state.current_pool_idx += 1
-                    st.session_state.page = "intermediate"
-                    st.rerun()
+                st.session_state.history.append(result_data)
+                st.session_state.last_result = result_data
+
+                st.session_state.solved_count += 1
+                st.session_state.current_pool_idx += 1
+                st.session_state.page = "intermediate"
+                st.rerun()
 
     with btn_col2:
         pass_disabled = pass_used >= 2
