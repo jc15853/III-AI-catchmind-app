@@ -464,3 +464,22 @@ elif st.session_state.page == "result":
 
             with r_col1:
                 if "image" in item:
+                    st.image(item["image"], width=280)
+
+            with r_col2:
+                st.markdown(
+                    f"""
+                    <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
+                        <b>🔍 AI 분석 피드백:</b><br>
+                        {item.get('ai_response', '')}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            st.divider()
+
+    if st.button("🔄 다시 학습하기", key="btn_restart"):
+        st.session_state.page = "start"
+        st.session_state.category = None
+        st.session_state.history = []
+        st.rerun()
