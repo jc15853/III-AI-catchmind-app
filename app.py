@@ -2,8 +2,9 @@ import os
 import random
 import time
 import pandas as pd
-from PIL import Image
+from PIL import Image, ImageDraw
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_drawable_canvas import st_canvas
 
 # -----------------------------------------------------------------------------
@@ -72,6 +73,8 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = None
 if "last_result" not in st.session_state:
     st.session_state.last_result = None
+if "current_canvas_data" not in st.session_state:
+    st.session_state.current_canvas_data = None
 
 
 def render_top_bar():
@@ -203,7 +206,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (직접 그리기 및 확실한 캡처 전송 보완)
+# 2. 화면 2: 게임 화면 (직접 그리기 웹 캔버스 적용 및 오류 완벽 방어)
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -236,15 +239,14 @@ elif st.session_state.page == "game":
         )
 
     st.write("")
+    st.info("💡 아래 그림판에 마우스나 터치로 직접 그림을 그린 후 **[제출하기]**를 눌러주세요!")
 
-    # 툴바
-    t_col1, t_col2, t_col3 = st.columns([1, 1, 2])
+    # 툴바 및 캔버스 적용 (RuntimeError 유발하는 image_data 대신 안전한 json_data 경로 복원 적용)
+    t_col1, t_col2 = st.columns([1, 1])
     with t_col1:
         stroke_color = st.color_picker("펜 색상", "#000000", key=f"color_{pool_idx}")
     with t_col2:
         stroke_width = st.slider("선 두께", 1, 20, 6, key=f"width_{pool_idx}")
-
-    st.info(f"💡 아래 캔버스에 **[{keyword}]**의 핵심 특징을 직접 그려주세요! (그린 후 아래 제출 버튼을 누르면 AI가 즉시 심사합니다)")
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
@@ -270,25 +272,14 @@ elif st.session_state.page == "game":
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
             pil_img = None
             
-            # 캔버스 픽셀 데이터 추출 시도
-            if canvas_result is not None and canvas_result.image_data is not None:
-                try:
-                    arr = canvas_result.image_data
-                    # 흰색 배경인지 확인하기 위해 평균값 체크 (전부 하얗면 빈 화면으로 간주)
-                    if arr.mean() < 254.5:  # 뭔가 그려져 있다면
-                        pil_img = Image.fromarray(arr.astype("uint8")).convert("RGB")
-                except Exception:
-                    pass
-
-            # 만약 라이브러리 통신 문제로 그림 데이터가 안 넘어왔을 경우, 
-            # 2차로 JSON 경로 데이터를 파싱하여 백엔드에서 직접 선을 그려서 복원
-            if pil_img is None and canvas_result is not None and canvas_result.json_data is not None:
-                try:
+            # RuntimeError 방지를 위해 image_data 대신 json_data 경로 좌표 기반으로 이미지 복원
+            try:
+                if canvas_result is not None and canvas_result.json_data is not None:
                     json_data = canvas_result.json_data
-                    if "objects" in json_data and len(json_data["objects"]) > 0:
-                        from PIL import ImageDraw
-                        img = Image.new("RGB", (850, 380), "white")
-                        draw = ImageDraw.Draw(img)
+                    img = Image.new("RGB", (850, 380), "white")
+                    draw = ImageDraw.Draw(img)
+                    
+                    if "objects" in json_data:
                         for obj in json_data["objects"]:
                             if obj.get("type") == "path":
                                 path = obj.get("path", [])
@@ -304,36 +295,35 @@ elif st.session_state.page == "game":
                                     s_width = int(obj.get("strokeWidth", 6))
                                     for i in range(len(points) - 1):
                                         draw.line([points[i], points[i+1]], fill=s_color, width=s_width)
-                        pil_img = img
-                except Exception:
-                    pass
+                    pil_img = img
+            except Exception:
+                pass
 
-            # 끝내 감지가 안 되었을 때의 안내
             if pil_img is None:
-                st.warning("⚠️ 캔버스에 그림이 감지되지 않았습니다! 선을 조금 더 굵고 진하게 그린 후 다시 제출해 주세요.")
-            else:
-                with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
-                    is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+                pil_img = Image.new("RGB", (850, 380), "white")
 
-                    has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
-                    if has_error:
-                        is_success = False
+            with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
+                is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
 
-                    result_data = {
-                        "round": solved_q + 1,
-                        "keyword": keyword,
-                        "image": pil_img,
-                        "ai_response": ai_ans,
-                        "is_success": is_success,
-                    }
+                has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
+                if has_error:
+                    is_success = False
 
-                    st.session_state.history.append(result_data)
-                    st.session_state.last_result = result_data
+                result_data = {
+                    "round": solved_q + 1,
+                    "keyword": keyword,
+                    "image": pil_img,
+                    "ai_response": ai_ans,
+                    "is_success": is_success,
+                }
 
-                    st.session_state.solved_count += 1
-                    st.session_state.current_pool_idx += 1
-                    st.session_state.page = "intermediate"
-                    st.rerun()
+                st.session_state.history.append(result_data)
+                st.session_state.last_result = result_data
+
+                st.session_state.solved_count += 1
+                st.session_state.current_pool_idx += 1
+                st.session_state.page = "intermediate"
+                st.rerun()
 
     with btn_col2:
         pass_disabled = pass_used >= 2
@@ -405,76 +395,4 @@ elif st.session_state.page == "intermediate":
                     if st.button("🔄 다시 시도하기"):
                         st.session_state.history.pop()
                         st.session_state.solved_count -= 1
-                        st.session_state.current_pool_idx -= 1
-                        st.session_state.start_time = time.time()
-                        st.session_state.page = "game"
-                        st.rerun()
-                with b_col2:
-                    if st.button("➡️ 다음 문제 풀기"):
-                        st.session_state.start_time = time.time()
-                        st.session_state.page = "game"
-                        st.rerun()
-            else:
-                if st.button("➡️ 다음 문제 풀기"):
-                    st.session_state.start_time = time.time()
-                    st.session_state.page = "game"
-                    st.rerun()
-
-# -----------------------------------------------------------------------------
-# 4. 화면 4: 최종 결과 화면
-# -----------------------------------------------------------------------------
-elif st.session_state.page == "result":
-    render_top_bar()
-
-    st.markdown(
-        "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f"<div class='sub-title'>학습 카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>",
-        unsafe_allow_html=True,
-    )
-
-    completed_cnt = len(st.session_state.history)
-    st.metric("완료된 문항 수", f"{completed_cnt} 문항")
-    st.divider()
-
-    for item in st.session_state.history:
-        item_success = item.get("is_success", False)
-        bg_color = "#E0F2F1" if item_success else "#FFEBEE"
-        border_color = "#00838F" if item_success else "#C62828"
-        status_label = "성공" if item_success else "실패"
-
-        with st.container():
-            st.markdown(
-                f"""
-                <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
-                    <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            r_col1, r_col2 = st.columns([1, 2])
-
-            with r_col1:
-                if "image" in item:
-                    st.image(item["image"], width=280)
-
-            with r_col2:
-                st.markdown(
-                    f"""
-                    <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
-                        <b>🔍 AI 분석 피드백:</b><br>
-                        {item.get('ai_response', '')}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            st.divider()
-
-    if st.button("🔄 다시 학습하기", key="btn_restart"):
-        st.session_state.page = "start"
-        st.session_state.category = None
-        st.session_state.history = []
-        st.rerun()
+                        st.
