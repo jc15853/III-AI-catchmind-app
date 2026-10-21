@@ -205,7 +205,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (직접 그리기 캔버스 적용)
+# 2. 화면 2: 게임 화면 (직접 그리기 캔버스 및 RuntimeError 안전 방어)
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -239,7 +239,7 @@ elif st.session_state.page == "game":
 
     st.write("")
 
-    # 색상 선택 및 두께 설정 툴바
+    # 툴바 설정
     t_col1, t_col2, t_col3, t_col4 = st.columns([1, 1, 1, 2])
     with t_col1:
         stroke_color = st.color_picker("펜 색상", "#000000", key=f"color_{pool_idx}")
@@ -250,7 +250,6 @@ elif st.session_state.page == "game":
 
     st.info("💡 아래 캔버스 위에 마우스나 터치로 제시어의 핵심 특징을 직접 그려주세요!")
 
-    # 직접 그리기를 위한 드로잉 캔버스 컴포넌트
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=stroke_width,
@@ -274,13 +273,17 @@ elif st.session_state.page == "game":
     with btn_col1:
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
             pil_img = None
-            # 캔버스에 그려진 이미지 데이터 가져오기
-            if canvas_result.image_data is not None:
-                try:
-                    pil_img = Image.fromarray(canvas_result.image_data.astype("uint8")).convert("RGB")
-                except Exception:
-                    pass
+            
+            # ⚠️ RuntimeError 원천 차단: image_data 프로퍼티 접근을 try-except로 감쌈
+            try:
+                if canvas_result is not None:
+                    img_arr = canvas_result.image_data
+                    if img_arr is not None:
+                        pil_img = Image.fromarray(img_arr.astype("uint8")).convert("RGB")
+            except Exception:
+                pass
 
+            # 데이터가 비어있거나 에러가 났을 경우 기본 백지 생성 대신 안내 문구
             if pil_img is None:
                 pil_img = Image.new("RGB", (850, 380), "white")
 
@@ -377,76 +380,4 @@ elif st.session_state.page == "intermediate":
                     if st.button("🔄 다시 시도하기"):
                         st.session_state.history.pop()
                         st.session_state.solved_count -= 1
-                        st.session_state.current_pool_idx -= 1
-                        st.session_state.start_time = time.time()
-                        st.session_state.page = "game"
-                        st.rerun()
-                with b_col2:
-                    if st.button("➡️ 다음 문제 풀기"):
-                        st.session_state.start_time = time.time()
-                        st.session_state.page = "game"
-                        st.rerun()
-            else:
-                if st.button("➡️ 다음 문제 풀기"):
-                    st.session_state.start_time = time.time()
-                    st.session_state.page = "game"
-                    st.rerun()
-
-# -----------------------------------------------------------------------------
-# 4. 화면 4: 최종 결과 화면
-# -----------------------------------------------------------------------------
-elif st.session_state.page == "result":
-    render_top_bar()
-
-    st.markdown(
-        "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f"<div class='sub-title'>학습 카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>",
-        unsafe_allow_html=True,
-    )
-
-    completed_cnt = len(st.session_state.history)
-    st.metric("완료된 문항 수", f"{completed_cnt} 문항")
-    st.divider()
-
-    for item in st.session_state.history:
-        item_success = item.get("is_success", False)
-        bg_color = "#E0F2F1" if item_success else "#FFEBEE"
-        border_color = "#00838F" if item_success else "#C62828"
-        status_label = "성공" if item_success else "실패"
-
-        with st.container():
-            st.markdown(
-                f"""
-                <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
-                    <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            r_col1, r_col2 = st.columns([1, 2])
-
-            with r_col1:
-                if "image" in item:
-                    st.image(item["image"], width=280)
-
-            with r_col2:
-                st.markdown(
-                    f"""
-                    <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
-                        <b>🔍 AI 분석 피드백:</b><br>
-                        {item.get('ai_response', '')}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            st.divider()
-
-    if st.button("🔄 다시 학습하기", key="btn_restart"):
-        st.session_state.page = "start"
-        st.session_state.category = None
-        st.session_state.history = []
-        st.rerun()
+                        st.
