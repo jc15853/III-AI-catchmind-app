@@ -348,39 +348,3 @@ elif st.session_state.page == "game":
                 st.rerun()
 
     with btn_col2:
-        pass_disabled = pass_used >= 2
-        if st.button(
-            f"⏩ 패스하기 ({pass_used}/2회 사용)",
-            key=f"btn_pass_{pool_idx}",
-            disabled=pass_disabled,
-            use_container_width=True,
-        ):
-            process_pass()
-
-    if is_time_over:
-        st.error("⏰ 제한 시간이 초과되었습니다! 그림을 제출하거나 패스해 주세요.")
-
-# -----------------------------------------------------------------------------
-# 3. 화면 3: 중간 평가 화면
-# -----------------------------------------------------------------------------
-elif st.session_state.page == "intermediate":
-    render_top_bar()
-
-    res = st.session_state.last_result
-    if res is None:
-        st.session_state.page = "start"
-        st.rerun()
-
-    round_num = res.get("round", 1)
-    img = res.get("image")
-    kw = res.get("keyword", "")
-    ai_res = res.get("ai_response", "")
-    is_success = res.get("is_success", False)
-
-    st.markdown(f"### 📋 [문제 {round_num}] 추상화 분석 결과")
-
-    col_img, col_info = st.columns([1, 1.2])
-
-    with col_img:
-        if img:
-            st.image(img, caption="내가 표현한 그림", width=32
