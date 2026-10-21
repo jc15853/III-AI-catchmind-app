@@ -203,7 +203,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (안전한 Drawing Canvas 연동)
+# 2. 화면 2: 게임 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -238,14 +238,13 @@ elif st.session_state.page == "game":
     st.write("")
     st.info("💡 아래 그림판에 마우스나 터치로 직접 그림을 그린 후 **[제출하기]**를 눌러주세요!")
 
-    # 펜 컨트롤 툴바
+    # 펜 도구 상단 배치
     t_col1, t_col2 = st.columns([1, 1])
     with t_col1:
         stroke_color = st.color_picker("펜 색상", "#000000", key=f"color_{pool_idx}")
     with t_col2:
         stroke_width = st.slider("선 두께", 1, 25, 6, key=f"width_{pool_idx}")
 
-    # 인-앱 드로잉 캔버스 컴포넌트
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=stroke_width,
@@ -269,10 +268,130 @@ elif st.session_state.page == "game":
     with btn_col1:
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
             pil_img = None
-
-            # RuntimeError를 원천 예방하는 안전한 접근방식
             try:
-                # 캔버스 객체의 __dict__를 조회하여 RuntimeError 유발 속성을 건너뜀
-                raw_data = getattr(canvas_result, "image_data", None)
-                if raw_data is not None:
-                    pil_img = Image.fromarray(raw
+                if canvas_result is not None and hasattr(canvas_result, "image_data") and canvas_result.image_data is not None:
+                    pil_img = Image.fromarray(canvas_result.image_data.astype("uint8")).convert("RGB")
+            except Exception:
+                pass
+
+            if pil_img is None:
+                pil_img = Image.new("RGB", (850, 380), "white")
+
+            with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
+                is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+
+                has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
+                if has_error:
+                    is_success = False
+
+                result_data = {
+                    "round": solved_q + 1,
+                    "keyword": keyword,
+                    "image": pil_img,
+                    "ai_response": ai_ans,
+                    "is_success": is_success,
+                }
+
+                st.session_state.history.append(result_data)
+                st.session_state.last_result = result_data
+
+                st.session_state.solved_count += 1
+                st.session_state.current_pool_idx += 1
+                st.session_state.page = "intermediate"
+                st.rerun()
+
+    with btn_col2:
+        pass_disabled = pass_used >= 2
+        if st.button(
+            f"⏩ 패스하기 ({pass_used}/2회 사용)",
+            key=f"btn_pass_{pool_idx}",
+            disabled=pass_disabled,
+            use_container_width=True,
+        ):
+            process_pass()
+
+    if is_time_over:
+        st.error("⏰ 제한 시간이 초과되었습니다! 그림을 제출하거나 패스해 주세요.")
+
+# -----------------------------------------------------------------------------
+# 3. 화면 3: 중간 평가 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "intermediate":
+    render_top_bar()
+
+    res = st.session_state.last_result
+    if res is None:
+        st.session_state.page = "start"
+        st.rerun()
+
+    round_num = res.get("round", 1)
+    img = res.get("image")
+    kw = res.get("keyword", "")
+    ai_res = res.get("ai_response", "")
+    is_success = res.get("is_success", False)
+
+    st.markdown(f"### 📋 [문제 {round_num}] 추상화 분석 결과")
+
+    col_img, col_info = st.columns([1, 1.2])
+
+    with col_img:
+        if img:
+            st.image(img, caption="내가 표현한 그림", width=320)
+
+    with col_info:
+        st.write("")
+        if is_success:
+            st.success("✨ 핵심 특징 추출(추상화) 성공!")
+        else:
+            st.error("⚠️ 핵심 특징 추출 실패 (다시 도전해 보세요!)")
+
+        st.markdown(
+            f"""
+            <div class="result-text-big" style="background-color: #E0F2F1; padding: 20px; border-radius: 12px; margin-top: 10px; border-left: 6px solid #00838F;">
+                • 목표 제시어: <span style="color: #00838F;"><b>{kw}</b></span><br><br>
+                • <b>AI 분석 결과:</b><br>
+                <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{ai_res}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.write("")
+        st.write("")
+
+        if st.session_state.solved_count >= st.session_state.total_target_questions:
+            if st.button("📊 최종 추상화 학습 결과 보기"):
+                st.session_state.page = "result"
+                st.rerun()
+        else:
+            if not is_success:
+                b_col1, b_col2 = st.columns(2)
+                with b_col1:
+                    if st.button("🔄 다시 시도하기"):
+                        st.session_state.history.pop()
+                        st.session_state.solved_count -= 1
+                        st.session_state.current_pool_idx -= 1
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+                with b_col2:
+                    if st.button("➡️ 다음 문제 풀기"):
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+            else:
+                if st.button("➡️ 다음 문제 풀기"):
+                    st.session_state.start_time = time.time()
+                    st.session_state.page = "game"
+                    st.rerun()
+
+# -----------------------------------------------------------------------------
+# 4. 화면 4: 최종 결과 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "result":
+    render_top_bar()
+
+    st.markdown(
+        "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
+        unsafe_allow_html=True,
+    )
