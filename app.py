@@ -170,14 +170,16 @@ def ask_gemini_vision(pil_image, keyword, category):
         pil_image.convert("RGB").save(image_buffer, format="PNG")
         image_bytes = image_buffer.getvalue()
 
+        from google.genai import types
+
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[
                 prompt,
-                {
-                    "mime_type": "image/png",
-                    "data": image_bytes,
-                },
+                types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type="image/png",
+                ),
             ],
         )
 
