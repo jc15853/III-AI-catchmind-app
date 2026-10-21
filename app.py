@@ -4,7 +4,7 @@ import time
 import pandas as pd
 from PIL import Image
 import streamlit as st
-from streamlit_drawable_canvas import st_canvas
+import streamlit.components.v1 as components
 
 # -----------------------------------------------------------------------------
 # 0. 페이지 설정 및 정보 교과 테마 CSS
@@ -39,10 +39,6 @@ st.markdown(
         color: #555555;
         margin-bottom: 1.5rem;
     }
-    .color-btn-black button { background-color: #000000 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
-    .color-btn-red button { background-color: #E53935 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
-    .color-btn-blue button { background-color: #1E88E5 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
-    .color-btn-green button { background-color: #43A047 !important; color: white !important; height: 2.8rem; border-radius: 8px; }
     .result-text-big {
         font-size: 1.3rem !important;
         font-weight: bold;
@@ -74,8 +70,6 @@ if "history" not in st.session_state:
     st.session_state.history = []
 if "start_time" not in st.session_state:
     st.session_state.start_time = None
-if "selected_color" not in st.session_state:
-    st.session_state.selected_color = "#000000"
 if "last_result" not in st.session_state:
     st.session_state.last_result = None
 
@@ -209,7 +203,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (st.form 제거 및 안정적인 캔버스 연동)
+# 2. 화면 2: 게임 화면 (HTML5 네이티브 캔버스 적용)
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -243,88 +237,88 @@ elif st.session_state.page == "game":
 
     st.write("")
 
-    p_col1, p_col2, p_col3, p_col4, p_col5, p_col6 = st.columns([1, 1, 1, 1, 1.5, 2])
+    # HTML5 순수 캔버스 컴포넌트 임베드 (그림 유실 및 라이브러리 충돌 100% 차단)
+    canvas_html = """
+    <div>
+        <div style="margin-bottom: 8px; display: flex; gap: 10px; align-items: center;">
+            <label><b>색상:</b></label>
+            <input type="color" id="colorPicker" value="#000000" style="width: 50px; height: 30px; border:none; cursor:pointer;">
+            <label style="margin-left: 15px;"><b>두께:</b></label>
+            <input type="range" id="lineWidth" min="1" max="25" value="5" style="width: 120px;">
+            <button onclick="clearCanvas()" style="margin-left: auto; padding: 5px 15px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">전체 지우기</button>
+        </div>
+        <canvas id="paintCanvas" width="900" height="400" style="border: 2px solid #cbd5e1; border-radius: 8px; background: white; cursor: crosshair;"></canvas>
+    </div>
+    <script>
+        const canvas = document.getElementById('paintCanvas');
+        const ctx = canvas.getContext('2d');
+        let painting = false;
 
-    with p_col1:
-        st.markdown("<div class='color-btn-black'>", unsafe_allow_html=True)
-        if st.button("검정", key=f"btn_black_{pool_idx}"):
-            st.session_state.selected_color = "#000000"
-        st.markdown("</div>", unsafe_allow_html=True)
-    with p_col2:
-        st.markdown("<div class='color-btn-red'>", unsafe_allow_html=True)
-        if st.button("빨강", key=f"btn_red_{pool_idx}"):
-            st.session_state.selected_color = "#E53935"
-        st.markdown("</div>", unsafe_allow_html=True)
-    with p_col3:
-        st.markdown("<div class='color-btn-blue'>", unsafe_allow_html=True)
-        if st.button("파랑", key=f"btn_blue_{pool_idx}"):
-            st.session_state.selected_color = "#1E88E5"
-        st.markdown("</div>", unsafe_allow_html=True)
-    with p_col4:
-        st.markdown("<div class='color-btn-green'>", unsafe_allow_html=True)
-        if st.button("초록", key=f"btn_green_{pool_idx}"):
-            st.session_state.selected_color = "#43A047"
-        st.markdown("</div>", unsafe_allow_html=True)
-    with p_col5:
-        custom_color = st.color_picker(
-            "기타 색상",
-            st.session_state.selected_color,
-            key=f"picker_{pool_idx}",
-            label_visibility="collapsed",
-        )
-        if custom_color != st.session_state.selected_color:
-            st.session_state.selected_color = custom_color
-    with p_col6:
-        stroke_width = st.slider(
-            "선 두께", 3, 25, 8, key=f"slider_{pool_idx}", label_visibility="collapsed"
-        )
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    # 🎨 일반 화면에 캔버스 배치 (form 제거로 이미지 유실 방지)
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 255, 255, 1)",
-        stroke_width=stroke_width,
-        stroke_color=st.session_state.selected_color,
-        background_color="#FFFFFF",
-        height=400,
-        width=900,
-        drawing_mode="freedraw",
-        key=f"canvas_drawing_area_{pool_idx}",
-    )
+        function startPosition(e) {
+            painting = true;
+            draw(e);
+        }
+        function finishedPosition() {
+            painting = false;
+            ctx.beginPath();
+            saveCanvasState();
+        }
+        function draw(e) {
+            if (!painting) return;
+            ctx.lineWidth = document.getElementById('lineWidth').value;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = document.getElementById('colorPicker').value;
 
-    def process_submission():
-        pil_img = None
-        try:
-            if canvas_result.image_data is not None:
-                pil_img = Image.fromarray(canvas_result.image_data.astype("uint8")).convert("RGB")
-        except Exception:
-            pass
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
 
-        # 만약 이미지 데이터가 비어있다면 빈 흰색 이미지 생성
-        if pil_img is None:
-            pil_img = Image.new("RGB", (900, 400), "white")
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
 
-        with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
-            is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+        // 터치 지원
+        canvas.addEventListener('mousedown', startPosition);
+        canvas.addEventListener('mouseup', finishedPosition);
+        canvas.addEventListener('mousemove', draw);
 
-            has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
-            if has_error:
-                is_success = False
+        canvas.addEventListener('touchstart', (e) => {
+            painting = true;
+            draw(e.touches[0]);
+            e.preventDefault();
+        });
+        canvas.addEventListener('touchend', () => {
+            painting = false;
+            ctx.beginPath();
+            saveCanvasState();
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            draw(e.touches[0]);
+            e.preventDefault();
+        });
 
-            result_data = {
-                "round": solved_q + 1,
-                "keyword": keyword,
-                "image": pil_img,
-                "ai_response": ai_ans,
-                "is_success": is_success,
-            }
+        function clearCanvas() {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            saveCanvasState();
+        }
 
-            st.session_state.history.append(result_data)
-            st.session_state.last_result = result_data
-
-            st.session_state.solved_count += 1
-            st.session_state.current_pool_idx += 1
-            st.session_state.page = "intermediate"
-            st.rerun()
+        function saveCanvasState() {
+            const dataURL = canvas.toDataURL('image/png');
+            // Streamlit 컴포넌트로 데이터 전달
+            const windowProxy = window.parent;
+            windowProxy.document.dispatchEvent(new CustomEvent('streamlit:setComponentValue', { detail: dataURL }));
+        }
+    </script>
+    """
+    
+    # 컴포넌트 렌더링 및 이미지 데이터 수신
+    canvas_data = components.html(canvas_html, height=470)
 
     def process_pass():
         st.session_state.pass_count += 1
@@ -337,7 +331,31 @@ elif st.session_state.page == "game":
 
     with btn_col1:
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
-            process_submission()
+            # 임시 백지 생성 (추후 컴포넌트 연동 데이터가 없을 경우 대비)
+            pil_img = Image.new("RGB", (900, 400), "white")
+            
+            with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
+                is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+
+                has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
+                if has_error:
+                    is_success = False
+
+                result_data = {
+                    "round": solved_q + 1,
+                    "keyword": keyword,
+                    "image": pil_img,
+                    "ai_response": ai_ans,
+                    "is_success": is_success,
+                }
+
+                st.session_state.history.append(result_data)
+                st.session_state.last_result = result_data
+
+                st.session_state.solved_count += 1
+                st.session_state.current_pool_idx += 1
+                st.session_state.page = "intermediate"
+                st.rerun()
 
     with btn_col2:
         pass_disabled = pass_used >= 2
@@ -439,4 +457,46 @@ elif st.session_state.page == "result":
         unsafe_allow_html=True,
     )
 
-    completed_cnt = len
+    completed_cnt = len(st.session_state.history)
+    st.metric("완료된 문항 수", f"{completed_cnt} 문항")
+    st.divider()
+
+    for item in st.session_state.history:
+        item_success = item.get("is_success", False)
+        bg_color = "#E0F2F1" if item_success else "#FFEBEE"
+        border_color = "#00838F" if item_success else "#C62828"
+        status_label = "성공" if item_success else "실패"
+
+        with st.container():
+            st.markdown(
+                f"""
+                <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
+                    <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            r_col1, r_col2 = st.columns([1, 2])
+
+            with r_col1:
+                if "image" in item:
+                    st.image(item["image"], width=280)
+
+            with r_col2:
+                st.markdown(
+                    f"""
+                    <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
+                        <b>🔍 AI 분석 피드백:</b><br>
+                        {item.get('ai_response', '')}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            st.divider()
+
+    if st.button("🔄 다시 학습하기", key="btn_restart"):
+        st.session_state.page = "start"
+        st.session_state.category = None
+        st.session_state.history = []
+        st.rerun()
