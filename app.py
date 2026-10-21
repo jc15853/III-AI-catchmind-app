@@ -4,7 +4,7 @@ import time
 import pandas as pd
 from PIL import Image
 import streamlit as st
-import streamlit.components.v1 as components
+from streamlit_drawable_canvas import st_canvas
 import io
 import base64
 
