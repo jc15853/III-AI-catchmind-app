@@ -228,7 +228,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면
+# 2. 화면 2: 게임 화면 (그림판 감춤/오류 완전 수정)
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -240,6 +240,7 @@ elif st.session_state.page == "game":
     solved_q = st.session_state.solved_count
     pass_used = st.session_state.pass_count
 
+    # 제한 시간 (60초)
     elapsed_time = time.time() - st.session_state.start_time
     remaining_time = max(0, int(60 - elapsed_time))
     is_time_over = remaining_time == 0
@@ -256,13 +257,118 @@ elif st.session_state.page == "game":
     with col3:
         timer_color = "red" if remaining_time <= 10 else "#333333"
         st.markdown(
-            f"<h4 style='text-align: right; color: {timer_color};'>⏱️ {remaining_time}초</h4>",
+            f"<h4 style='text-align: right; color: {timer_color};'>⏱️ 남은 시간: {remaining_time}초</h4>",
             unsafe_allow_html=True,
         )
 
     st.write("")
 
+    # 색상 선택 및 두께 설정
     p_col1, p_col2, p_col3, p_col4, p_col5, p_col6 = st.columns([1, 1, 1, 1, 1.5, 2])
 
     with p_col1:
         st.markdown("<div class='color-btn-black'>", unsafe_allow_html=True)
+        if st.button("검정", key=f"btn_black_{pool_idx}"):
+            st.session_state.selected_color = "#000000"
+        st.markdown("</div>", unsafe_allow_html=True)
+    with p_col2:
+        st.markdown("<div class='color-btn-red'>", unsafe_allow_html=True)
+        if st.button("빨강", key=f"btn_red_{pool_idx}"):
+            st.session_state.selected_color = "#E53935"
+        st.markdown("</div>", unsafe_allow_html=True)
+    with p_col3:
+        st.markdown("<div class='color-btn-blue'>", unsafe_allow_html=True)
+        if st.button("파랑", key=f"btn_blue_{pool_idx}"):
+            st.session_state.selected_color = "#1E88E5"
+        st.markdown("</div>", unsafe_allow_html=True)
+    with p_col4:
+        st.markdown("<div class='color-btn-green'>", unsafe_allow_html=True)
+        if st.button("초록", key=f"btn_green_{pool_idx}"):
+            st.session_state.selected_color = "#43A047"
+        st.markdown("</div>", unsafe_allow_html=True)
+    with p_col5:
+        custom_color = st.color_picker(
+            "기타 색상",
+            st.session_state.selected_color,
+            key=f"picker_{pool_idx}",
+            label_visibility="collapsed",
+        )
+        if custom_color != st.session_state.selected_color:
+            st.session_state.selected_color = custom_color
+    with p_col6:
+        stroke_width = st.slider(
+            "선 두께", 3, 25, 8, key=f"slider_{pool_idx}", label_visibility="collapsed"
+        )
+
+    # 🎨 캔버스 (고유 key 고정으로 절대 사라지지 않도록 방어)
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 255, 255, 1)",
+        stroke_width=stroke_width,
+        stroke_color=st.session_state.selected_color,
+        background_color="#FFFFFF",
+        height=400,
+        width=900,
+        drawing_mode="freedraw",
+        key=f"canvas_drawing_area_{pool_idx}",
+    )
+
+    # 제출 처리 함수
+    def process_submission():
+        try:
+            if canvas_result.image_data is not None:
+                image_data = canvas_result.image_data
+            else:
+                st.warning("⚠️ 캔버스 데이터를 가져오는 중입니다. 핵심 특징을 그린 후 제출해 주세요.")
+                return
+        except Exception:
+            st.warning("⚠️ 그림을 인식하는 중입니다. 선을 한 번 더 살짝 그리고 제출해 주세요!")
+            return
+
+        with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
+            pil_img = Image.fromarray(image_data.astype("uint8")).convert("RGB")
+            is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+
+            has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
+            if has_error:
+                is_success = False
+
+            result_data = {
+                "round": solved_q + 1,
+                "keyword": keyword,
+                "image": pil_img,
+                "ai_response": ai_ans,
+                "is_success": is_success,
+            }
+
+            st.session_state.history.append(result_data)
+            st.session_state.last_result = result_data
+
+            st.session_state.solved_count += 1
+            st.session_state.current_pool_idx += 1
+            st.session_state.page = "intermediate"
+            st.rerun()
+
+    def process_pass():
+        st.session_state.pass_count += 1
+        st.session_state.current_pool_idx += 1
+        st.session_state.start_time = time.time()
+        st.rerun()
+
+    st.write("")
+    btn_col1, btn_col2 = st.columns([1, 1])
+
+    with btn_col1:
+        if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}"):
+            process_submission()
+
+    with btn_col2:
+        pass_disabled = pass_used >= 2
+        if st.button(
+            f"⏩ 패스하기 ({pass_used}/2회 사용)",
+            key=f"btn_pass_{pool_idx}",
+            disabled=pass_disabled,
+        ):
+            process_pass()
+
+    if is_time_over:
+        st.error("⏰ 제한 시간이 초과되었습니다! 위에 그린 그림을 제출하거나 패스해 주세요.")
