@@ -206,7 +206,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (직접 그리기 웹 캔버스 적용 및 오류 완벽 방어)
+# 2. 화면 2: 게임 화면 (원본 구조 100% 복원 + 안전한 그림 복원 로직)
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -241,13 +241,16 @@ elif st.session_state.page == "game":
     st.write("")
     st.info("💡 아래 그림판에 마우스나 터치로 직접 그림을 그린 후 **[제출하기]**를 눌러주세요!")
 
-    # 툴바 및 캔버스 적용 (RuntimeError 유발하는 image_data 대신 안전한 json_data 경로 복원 적용)
-    t_col1, t_col2 = st.columns([1, 1])
+    # 원본과 동일한 툴바 구조
+    t_col1, t_col2, t_col3, t_col4 = st.columns([1, 1, 1, 2])
     with t_col1:
         stroke_color = st.color_picker("펜 색상", "#000000", key=f"color_{pool_idx}")
     with t_col2:
-        stroke_width = st.slider("선 두께", 1, 20, 6, key=f"width_{pool_idx}")
+        stroke_width = st.slider("선 두께", 1, 20, 5, key=f"width_{pool_idx}")
+    with t_col3:
+        drawing_mode = st.selectbox("모드", ["freedraw", "line", "rect", "circle"], key=f"mode_{pool_idx}")
 
+    # 원본과 동일한 st_canvas 배치
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=stroke_width,
@@ -255,7 +258,7 @@ elif st.session_state.page == "game":
         background_color="#FFFFFF",
         height=380,
         width=850,
-        drawing_mode="freedraw",
+        drawing_mode=drawing_mode,
         key=f"canvas_{pool_idx}",
     )
 
@@ -272,7 +275,7 @@ elif st.session_state.page == "game":
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
             pil_img = None
             
-            # RuntimeError 방지를 위해 image_data 대신 json_data 경로 좌표 기반으로 이미지 복원
+            # RuntimeError 방지 및 그린 그림 좌표 복원
             try:
                 if canvas_result is not None and canvas_result.json_data is not None:
                     json_data = canvas_result.json_data
@@ -292,7 +295,7 @@ elif st.session_state.page == "game":
                                             pass
                                 if len(points) > 1:
                                     s_color = obj.get("stroke", "#000000")
-                                    s_width = int(obj.get("strokeWidth", 6))
+                                    s_width = int(obj.get("strokeWidth", 5))
                                     for i in range(len(points) - 1):
                                         draw.line([points[i], points[i+1]], fill=s_color, width=s_width)
                     pil_img = img
@@ -421,50 +424,4 @@ elif st.session_state.page == "result":
         unsafe_allow_html=True,
     )
     st.markdown(
-        f"<div class='sub-title'>학습 카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>",
-        unsafe_allow_html=True,
-    )
-
-    completed_cnt = len(st.session_state.history)
-    st.metric("완료된 문항 수", f"{completed_cnt} 문항")
-    st.divider()
-
-    for item in st.session_state.history:
-        item_success = item.get("is_success", False)
-        bg_color = "#E0F2F1" if item_success else "#FFEBEE"
-        border_color = "#00838F" if item_success else "#C62828"
-        status_label = "성공" if item_success else "실패"
-
-        with st.container():
-            st.markdown(
-                f"""
-                <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
-                    <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            r_col1, r_col2 = st.columns([1, 2])
-
-            with r_col1:
-                if "image" in item:
-                    st.image(item["image"], width=280)
-
-            with r_col2:
-                st.markdown(
-                    f"""
-                    <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
-                        <b>🔍 AI 분석 피드백:</b><br>
-                        {item.get('ai_response', '')}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            st.divider()
-
-    if st.button("🔄 다시 학습하기", key="btn_restart"):
-        st.session_state.page = "start"
-        st.session_state.category = None
-        st.session_state.history = []
-        st.rerun()
+        f"<div class='sub-title'>학습
