@@ -242,8 +242,8 @@ elif st.session_state.page == "game":
     st.write("")
     st.info("💡 아래 그림판에 마우스나 터치로 직접 그림을 그린 후 **[제출하기]**를 눌러주세요!")
 
-    # 순수 HTML5/JS 기반 드로잉 캔버스 컴포넌트 (중괄호 탈출 처리 완료)
-    paint_html = f"""
+    # 순수 HTML 템플릿 정의 후 인덱스 주입
+    paint_html_template = """
     <div style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
         <div style="margin-bottom: 10px; display: flex; gap: 15px; align-items: center;">
             <div>
@@ -256,13 +256,95 @@ elif st.session_state.page == "game":
             </div>
             <button onclick="clearArea()" style="margin-left: auto; padding: 6px 14px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px;">전체 지우기</button>
         </div>
-        <canvas id="myCanvas_{pool_idx}" width="850" height="380" style="background: white; border: 2px solid #cbd5e1; border-radius: 8px; cursor: crosshair; display: block;"></canvas>
+        <canvas id="myCanvas_PLACEHOLDER" width="850" height="380" style="background: white; border: 2px solid #cbd5e1; border-radius: 8px; cursor: crosshair; display: block;"></canvas>
     </div>
 
     <script>
-        const canvas = document.getElementById('myCanvas_{pool_idx}');
+        const canvas = document.getElementById('myCanvas_PLACEHOLDER');
         const ctx = canvas.getContext('2d');
         let painting = false;
 
         ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, canvas.width, canvas
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        function startDraw(e) {
+            painting = true;
+            draw(e);
+        }
+        function endDraw() {
+            painting = false;
+            ctx.beginPath();
+            updatePython();
+        }
+        function draw(e) {
+            if (!painting) return;
+            ctx.lineWidth = document.getElementById('sizeRange').value;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = document.getElementById('colPick').value;
+
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            if (clientX === undefined) return;
+
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mouseup', endDraw);
+        canvas.addEventListener('mousemove', draw);
+
+        canvas.addEventListener('touchstart', (e) => { startDraw(e.touches[0]); e.preventDefault(); });
+        canvas.addEventListener('touchend', () => { endDraw(); });
+        canvas.addEventListener('touchmove', (e) => { draw(e.touches[0]); e.preventDefault(); });
+
+        function clearArea() {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            updatePython();
+        }
+
+        function updatePython() {
+            const dataURL = canvas.toDataURL('image/png');
+            window.parent.postMessage({type: 'streamlit:setComponentValue', value: dataURL}, '*');
+        }
+    </script>
+    """
+    paint_html = paint_html_template.replace("PLACEHOLDER", str(pool_idx))
+
+    canvas_value = components.html(paint_html, height=450)
+
+    def process_pass():
+        st.session_state.pass_count += 1
+        st.session_state.current_pool_idx += 1
+        st.session_state.start_time = time.time()
+        st.rerun()
+
+    st.write("")
+    btn_col1, btn_col2 = st.columns([1, 1])
+
+    with btn_col1:
+        if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
+            pil_img = None
+            if canvas_value:
+                try:
+                    header, encoded = canvas_value.split(",", 1)
+                    image_data = base64.b64decode(encoded)
+                    pil_img = Image.open(io.BytesIO(image_data)).convert("RGB")
+                except Exception:
+                    pass
+
+            if pil_img is None:
+                pil_img = Image.new("RGB", (850, 380), "white")
+
+            with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
+                is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
+
+                has_error = "통신 오류" in ai_ans or "API 키"
