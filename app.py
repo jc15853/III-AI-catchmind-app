@@ -1,7 +1,6 @@
 import os
 import random
 import time
-import numpy as np
 import pandas as pd
 from PIL import Image, ImageDraw
 import streamlit as st
@@ -146,8 +145,9 @@ def ask_gemini_vision(pil_image, keyword, category):
             f"설명: [핵심 내용 위주로 한두 문장으로 짧게 설명]"
         )
 
+        # 최신 권장 모델 명으로 교체
         response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=[pil_image, prompt]
+            model="gemini-3.8-flash", contents=[pil_image, prompt]
         )
         if response and response.text:
             text = response.text.strip()
@@ -280,7 +280,6 @@ elif st.session_state.page == "game":
             "선 두께", 3, 25, 8, key=f"slider_{pool_idx}", label_visibility="collapsed"
         )
 
-    # st.form을 이용해 캔버스와 제출 버튼 안전 결합
     with st.form(key=f"drawing_form_{pool_idx}"):
         canvas_result = st_canvas(
             fill_color="rgba(255, 255, 255, 1)",
@@ -301,21 +300,33 @@ elif st.session_state.page == "game":
         st.rerun()
 
     if submitted:
+        pil_img = None
+        # 1차 시도: image_data 활용
         try:
-            # image_data 대신 안전하게 기본 백지 생성 후 fallback 처리
-            pil_img = None
             if canvas_result.image_data is not None:
-                try:
-                    pil_img = Image.fromarray(canvas_result.image_data.astype("uint8")).convert("RGB")
-                except Exception:
-                    pass
-            
-            # 만약 변환 실패 시 기본 백지 이미지 생성
-            if pil_img is None:
-                pil_img = Image.new("RGB", (900, 400), "white")
-
+                pil_img = Image.fromarray(canvas_result.image_data.astype("uint8")).convert("RGB")
         except Exception:
-            pil_img = Image.new("RGB", (900, 400), "white")
+            pass
+
+        # 2차 시도: image_data 실패 시 json_data 객체들을 기반으로 이미지 직접 렌더링 (그림 누락 방지)
+        if pil_img is None:
+            try:
+                pil_img = Image.new("RGB", (900, 400), "white")
+                draw = ImageDraw.Draw(pil_img)
+                if canvas_result.json_data and "objects" in canvas_result.json_data:
+                    for obj in canvas_result.json_data["objects"]:
+                        if obj.get("type") == "path":
+                            path = obj.get("path", [])
+                            points = []
+                            for cmd in path:
+                                if len(cmd) >= 3 and cmd[0] in ["M", "L", "Q"]:
+                                    points.append((float(cmd[1]), float(cmd[2])))
+                            if len(points) > 1:
+                                stroke_col = obj.get("stroke", "#000000")
+                                stroke_w = int(obj.get("strokeWidth", 5))
+                                draw.line(points, fill=stroke_col, width=stroke_w)
+            except Exception:
+                pil_img = Image.new("RGB", (900, 400), "white")
 
         with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
             is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
@@ -470,7 +481,7 @@ elif st.session_state.page == "result":
                 st.markdown(
                     f"""
                     <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
-                        <b>🔍 AI 분석 피드백:</b><br>
+                        <b>🔍 AI 분석 피د백:</b><br>
                         {item.get('ai_response', '')}
                     </div>
                     """,
