@@ -2,7 +2,7 @@ import os
 import random
 import time
 import pandas as pd
-from PIL import Image
+from PIL import Image, ImageDraw
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 
@@ -155,6 +155,49 @@ def ask_gemini_vision(pil_image, keyword, category):
 
 
 # -----------------------------------------------------------------------------
+# 캔버스 데이터 안전 추출 및 좌표 복원 헬퍼 함수
+# -----------------------------------------------------------------------------
+def get_drawn_image(canvas_result):
+    # 1차 시도: image_data 직접 가져오기
+    try:
+        if canvas_result is not None and canvas_result.image_data is not None:
+            arr = canvas_result.image_data
+            if arr is not None:
+                return Image.fromarray(arr.astype("uint8")).convert("RGB")
+    except Exception:
+        pass
+
+    # 2차 시도: json_data의 선 좌표들을 분석해서 PIL로 직접 그려서 복원 (그림 누락 완벽 방어)
+    try:
+        if canvas_result is not None and canvas_result.json_data is not None:
+            json_data = canvas_result.json_data
+            img = Image.new("RGB", (850, 380), "white")
+            draw = ImageDraw.Draw(img)
+            
+            if "objects" in json_data:
+                for obj in json_data["objects"]:
+                    if obj.get("type") == "path":
+                        path = obj.get("path", [])
+                        points = []
+                        for cmd in path:
+                            if len(cmd) >= 3:
+                                try:
+                                    points.append((float(cmd[-2]), float(cmd[-1])))
+                                except Exception:
+                                    pass
+                        if len(points) > 1:
+                            stroke_color = obj.get("stroke", "#000000")
+                            stroke_width = int(obj.get("strokeWidth", 5))
+                            for i in range(len(points) - 1):
+                                draw.line([points[i], points[i+1]], fill=stroke_color, width=stroke_width)
+            return img
+    except Exception:
+        pass
+
+    return Image.new("RGB", (850, 380), "white")
+
+
+# -----------------------------------------------------------------------------
 # 1. 화면 1: 시작 화면
 # -----------------------------------------------------------------------------
 if st.session_state.page == "start":
@@ -205,7 +248,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (직접 그리기 캔버스 및 RuntimeError 안전 방어)
+# 2. 화면 2: 게임 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -239,7 +282,6 @@ elif st.session_state.page == "game":
 
     st.write("")
 
-    # 툴바 설정
     t_col1, t_col2, t_col3, t_col4 = st.columns([1, 1, 1, 2])
     with t_col1:
         stroke_color = st.color_picker("펜 색상", "#000000", key=f"color_{pool_idx}")
@@ -272,20 +314,8 @@ elif st.session_state.page == "game":
 
     with btn_col1:
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
-            pil_img = None
-            
-            # ⚠️ RuntimeError 원천 차단: image_data 프로퍼티 접근을 try-except로 감쌈
-            try:
-                if canvas_result is not None:
-                    img_arr = canvas_result.image_data
-                    if img_arr is not None:
-                        pil_img = Image.fromarray(img_arr.astype("uint8")).convert("RGB")
-            except Exception:
-                pass
-
-            # 데이터가 비어있거나 에러가 났을 경우 기본 백지 생성 대신 안내 문구
-            if pil_img is None:
-                pil_img = Image.new("RGB", (850, 380), "white")
+            # 좌표 복원 함수를 통해 그림 이미지 완벽 획득
+            pil_img = get_drawn_image(canvas_result)
 
             with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
                 is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
