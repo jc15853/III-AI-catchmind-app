@@ -1,8 +1,9 @@
 import os
 import random
 import time
+import numpy as np
 import pandas as pd
-from PIL import Image
+from PIL import Image, ImageDraw
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
 
@@ -102,7 +103,6 @@ def load_keywords():
     file_path = "keyword.csv"
     if os.path.exists(file_path):
         try:
-            # 인코딩 자동 처리로 파일 읽기
             for enc in ["utf-8-sig", "cp949", "euc-kr"]:
                 try:
                     df = pd.read_csv(file_path, encoding=enc)
@@ -110,30 +110,20 @@ def load_keywords():
                 except UnicodeDecodeError:
                     continue
             
-            # 컬럼명을 소문자로 통일하고 공백 제거
             df.columns = [str(col).strip().lower() for col in df.columns]
-            
-            # 한글 헤더나 영문 헤더 모두 표준("category", "keyword")으로 자동 변환
             rename_map = {}
             for col in df.columns:
                 if "카테고리" in col or "cat" in col:
                     rename_map[col] = "category"
                 elif "키워드" in col or "word" in col or "제시어" in col:
                     rename_map[col] = "keyword"
-            
             df = df.rename(columns=rename_map)
-            
-            # 필수 컬럼이 있는지 확인
-            if "category" not in df.columns or "keyword" not in df.columns:
-                st.error("⚠️ 'keyword.csv' 파일의 열 이름에 'category'와 'keyword'(또는 카테고리, 키워드)가 포함되어 있어야 합니다.")
-                return None
-                
             return df
         except Exception as e:
-            st.error(f"⚠️ keyword.csv 파일을 읽는 중 오류가 발생했습니다: {e}")
+            st.error(f"⚠️ keyword.csv 오류: {e}")
             return None
     else:
-        st.error("⚠️ 'keyword.csv' 파일이 같은 폴더에 존재하지 않습니다! 파일을 확인해 주세요.")
+        st.error("⚠️ 'keyword.csv' 파일이 없습니다!")
         return None
 
 
@@ -144,7 +134,6 @@ def ask_gemini_vision(pil_image, keyword, category):
 
     try:
         from google import genai
-
         client = genai.Client(api_key=api_key.strip())
 
         prompt = (
@@ -154,7 +143,7 @@ def ask_gemini_vision(pil_image, keyword, category):
             f"사용자가 그린 그림이 위 정의에 따라 불필요한 것을 없애고 제시어('{keyword}')의 핵심 요소를 제대로 뽑아냈는지 엄격하게 평가해주세요.\n"
             f"반드시 아래 형식으로만 답변해주세요.\n"
             f"판정: [성공 또는 실패 중 하나만 작성]\n"
-            f"설명: [장점과 보완점 같은 복잡한 내용은 제외하고, 핵심 내용 위주로 한두 문장으로 짧게 설명]"
+            f"설명: [핵심 내용 위주로 한두 문장으로 짧게 설명]"
         )
 
         response = client.models.generate_content(
@@ -162,9 +151,7 @@ def ask_gemini_vision(pil_image, keyword, category):
         )
         if response and response.text:
             text = response.text.strip()
-            is_success = False
-            if "판정: 성공" in text or "성공" in text.split("\n")[0]:
-                is_success = True
+            is_success = "판정: 성공" in text or "성공" in text.split("\n")[0]
             return is_success, text
     except Exception as e:
         return False, f"통신 오류 발생: {str(e)}"
@@ -182,10 +169,7 @@ if st.session_state.page == "start":
     with st.expander("📖 교육과정 학습 목표 및 정의 안내", expanded=True):
         st.markdown("""
             🤖 **정보 교과 [문제해결과 프로그래밍 - 추상화]**  
-            
             💡 **추상화:** 불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것
-            
-            학습 목표: 제시된 대상에서 불필요한 디테일은 없애고, 본질적인 핵심 요소만 간결하게 그려 표현해 봅시다!
             """)
 
     st.write("")
@@ -212,9 +196,7 @@ if st.session_state.page == "start":
                     required_count = target_q
 
                     if len(filtered) < required_count:
-                        st.error(
-                            f"'{cat}' 카테고리의 키워드가 부족합니다 (요청하신 문제 수: {required_count}개, 보유한 키워드 수: {len(filtered)}개). 입력한 문제 수를 낮추거나 키워드를 추가해 주세요."
-                        )
+                        st.error(f"'{cat}' 카테고리 키워드가 부족합니다 (요청: {required_count}개, 보유: {len(filtered)}개).")
                     else:
                         st.session_state.category = cat
                         st.session_state.total_target_questions = target_q
@@ -228,7 +210,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (st.form을 이용한 완벽한 캔버스 데이터 동기화)
+# 2. 화면 2: 게임 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -240,7 +222,6 @@ elif st.session_state.page == "game":
     solved_q = st.session_state.solved_count
     pass_used = st.session_state.pass_count
 
-    # 제한 시간 (60초)
     elapsed_time = time.time() - st.session_state.start_time
     remaining_time = max(0, int(60 - elapsed_time))
     is_time_over = remaining_time == 0
@@ -263,7 +244,6 @@ elif st.session_state.page == "game":
 
     st.write("")
 
-    # 색상 선택 및 두께 설정
     p_col1, p_col2, p_col3, p_col4, p_col5, p_col6 = st.columns([1, 1, 1, 1, 1.5, 2])
 
     with p_col1:
@@ -300,7 +280,7 @@ elif st.session_state.page == "game":
             "선 두께", 3, 25, 8, key=f"slider_{pool_idx}", label_visibility="collapsed"
         )
 
-    # 🎨 st.form으로 캔버스와 제출 버튼을 묶어 데이터 유실 및 에러 원천 차단
+    # st.form을 이용해 캔버스와 제출 버튼 안전 결합
     with st.form(key=f"drawing_form_{pool_idx}"):
         canvas_result = st_canvas(
             fill_color="rgba(255, 255, 255, 1)",
@@ -312,7 +292,6 @@ elif st.session_state.page == "game":
             drawing_mode="freedraw",
             key=f"canvas_drawing_area_{pool_idx}",
         )
-        
         submitted = st.form_submit_button("🧩 추상화 결과 제출하기", use_container_width=True)
 
     def process_pass():
@@ -321,20 +300,24 @@ elif st.session_state.page == "game":
         st.session_state.start_time = time.time()
         st.rerun()
 
-    # 폼 제출이 발생했을 때 처리
     if submitted:
         try:
+            # image_data 대신 안전하게 기본 백지 생성 후 fallback 처리
+            pil_img = None
             if canvas_result.image_data is not None:
-                image_data = canvas_result.image_data
-            else:
-                st.warning("⚠️ 캔버스 데이터가 비어 있습니다. 그림을 그려주세요.")
-                st.stop()
+                try:
+                    pil_img = Image.fromarray(canvas_result.image_data.astype("uint8")).convert("RGB")
+                except Exception:
+                    pass
+            
+            # 만약 변환 실패 시 기본 백지 이미지 생성
+            if pil_img is None:
+                pil_img = Image.new("RGB", (900, 400), "white")
+
         except Exception:
-            st.warning("⚠️ 그림 인식 중 오류가 발생했습니다. 다시 시도해 주세요.")
-            st.stop()
+            pil_img = Image.new("RGB", (900, 400), "white")
 
         with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
-            pil_img = Image.fromarray(image_data.astype("uint8")).convert("RGB")
             is_success, ai_ans = ask_gemini_vision(pil_img, keyword, category)
 
             has_error = "통신 오류" in ai_ans or "API 키" in ai_ans
@@ -357,7 +340,6 @@ elif st.session_state.page == "game":
             st.session_state.page = "intermediate"
             st.rerun()
 
-    # 패스하기 버튼 (폼 바깥에 위치)
     st.write("")
     pass_disabled = pass_used >= 2
     if st.button(
@@ -370,3 +352,115 @@ elif st.session_state.page == "game":
 
     if is_time_over:
         st.error("⏰ 제한 시간이 초과되었습니다! 그림을 제출하거나 패스해 주세요.")
+
+# -----------------------------------------------------------------------------
+# 3. 화면 3: 중간 평가 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "intermediate":
+    render_top_bar()
+
+    res = st.session_state.last_result
+    if res is None:
+        st.session_state.page = "start"
+        st.rerun()
+
+    round_num = res.get("round", 1)
+    img = res.get("image")
+    kw = res.get("keyword", "")
+    ai_res = res.get("ai_response", "")
+    is_success = res.get("is_success", False)
+
+    st.markdown(f"### 📋 [문제 {round_num}] 추상화 분석 결과")
+
+    col_img, col_info = st.columns([1, 1.2])
+
+    with col_img:
+        if img:
+            st.image(img, caption="내가 표현한 그림", width=320)
+
+    with col_info:
+        st.write("")
+        if is_success:
+            st.success("✨ 핵심 특징 추출(추상화) 성공!")
+        else:
+            st.error("⚠️ 핵심 특징 추출 실패 (다시 도전해 보세요!)")
+
+        st.markdown(
+            f"""
+            <div class="result-text-big" style="background-color: #E0F2F1; padding: 20px; border-radius: 12px; margin-top: 10px; border-left: 6px solid #00838F;">
+                • 목표 제시어: <span style="color: #00838F;"><b>{kw}</b></span><br><br>
+                • <b>AI 분석 결과:</b><br>
+                <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{ai_res}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.write("")
+        st.write("")
+
+        if st.session_state.solved_count >= st.session_state.total_target_questions:
+            if st.button("📊 최종 추상화 학습 결과 보기"):
+                st.session_state.page = "result"
+                st.rerun()
+        else:
+            if not is_success:
+                b_col1, b_col2 = st.columns(2)
+                with b_col1:
+                    if st.button("🔄 다시 시도하기"):
+                        st.session_state.history.pop()
+                        st.session_state.solved_count -= 1
+                        st.session_state.current_pool_idx -= 1
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+                with b_col2:
+                    if st.button("➡️ 다음 문제 풀기"):
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+            else:
+                if st.button("➡️ 다음 문제 풀기"):
+                    st.session_state.start_time = time.time()
+                    st.session_state.page = "game"
+                    st.rerun()
+
+# -----------------------------------------------------------------------------
+# 4. 화면 4: 최종 결과 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "result":
+    render_top_bar()
+
+    st.markdown(
+        "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div class='sub-title'>학습 카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>",
+        unsafe_allow_html=True,
+    )
+
+    completed_cnt = len(st.session_state.history)
+    st.metric("완료된 문항 수", f"{completed_cnt} 문항")
+    st.divider()
+
+    for item in st.session_state.history:
+        item_success = item.get("is_success", False)
+        bg_color = "#E0F2F1" if item_success else "#FFEBEE"
+        border_color = "#00838F" if item_success else "#C62828"
+        status_label = "성공" if item_success else "실패"
+
+        with st.container():
+            st.markdown(
+                f"""
+                <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
+                    <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            r_col1, r_col2 = st.columns([1, 2])
+
+            with r_col1:
+                if "image" in item:
