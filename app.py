@@ -153,7 +153,7 @@ def ask_gemini_vision(pil_image, keyword, category):
 
 
 # -----------------------------------------------------------------------------
-# 캔버스 JSON 좌표 데이터를 기반으로 PIL 이미지 복원 함수 (에러 원천 차단)
+# 캔버스 JSON 좌표 데이터를 기반으로 PIL 이미지 완벽 복원 함수
 # -----------------------------------------------------------------------------
 def get_drawn_image(canvas_result):
     img = Image.new("RGB", (850, 380), "white")
@@ -166,7 +166,7 @@ def get_drawn_image(canvas_result):
                 for obj in json_data["objects"]:
                     obj_type = obj.get("type")
                     s_color = obj.get("stroke", "#000000")
-                    s_width = int(obj.get("strokeWidth", 6))
+                    s_width = int(obj.get("strokeWidth", 5))
                     
                     if obj_type == "path":
                         path = obj.get("path", [])
@@ -257,7 +257,7 @@ if st.session_state.page == "start":
                         st.rerun()
 
 # -----------------------------------------------------------------------------
-# 2. 화면 2: 게임 화면 (원본 디자인 그대로 유지)
+# 2. 화면 2: 게임 화면
 # -----------------------------------------------------------------------------
 elif st.session_state.page == "game":
     render_top_bar()
@@ -290,14 +290,15 @@ elif st.session_state.page == "game":
         )
 
     st.write("")
-    st.info(f"💡 아래 캔버스에 **[{keyword}]**의 핵심 특징을 직접 그려주세요!")
 
-    # 원본 툴바 레이아웃 (색상 선택, 선 두께 슬라이더)
-    t_col1, t_col2, t_col3 = st.columns([1, 1, 2])
+    # 원본 툴바 레이아웃
+    t_col1, t_col2, t_col3, t_col4 = st.columns([1, 1, 1, 2])
     with t_col1:
         stroke_color = st.color_picker("펜 색상", "#000000", key=f"color_{pool_idx}")
     with t_col2:
-        stroke_width = st.slider("선 두께", 1, 20, 6, key=f"width_{pool_idx}")
+        stroke_width = st.slider("선 두께", 1, 20, 5, key=f"width_{pool_idx}")
+    with t_col3:
+        drawing_mode = st.selectbox("모드", ["freedraw", "line", "rect", "circle"], key=f"mode_{pool_idx}")
 
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
@@ -306,7 +307,7 @@ elif st.session_state.page == "game":
         background_color="#FFFFFF",
         height=380,
         width=850,
-        drawing_mode="freedraw",
+        drawing_mode=drawing_mode,
         key=f"canvas_{pool_idx}",
     )
 
@@ -321,6 +322,7 @@ elif st.session_state.page == "game":
 
     with btn_col1:
         if st.button("🧩 추상화 결과 제출하기", key=f"btn_submit_{pool_idx}", use_container_width=True):
+            # 좌표 기반으로 그림 복원
             pil_img = get_drawn_image(canvas_result)
 
             with st.spinner("🔍 AI가 추상화(핵심 특징 추출) 결과를 분석 중입니다..."):
@@ -416,4 +418,76 @@ elif st.session_state.page == "intermediate":
                     if st.button("🔄 다시 시도하기"):
                         st.session_state.history.pop()
                         st.session_state.solved_count -= 1
-                        st.session_state.current_
+                        st.session_state.current_pool_idx -= 1
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+                with b_col2:
+                    if st.button("➡️ 다음 문제 풀기"):
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+            else:
+                if st.button("➡️ 다음 문제 풀기"):
+                    st.session_state.start_time = time.time()
+                    st.session_state.page = "game"
+                    st.rerun()
+
+# -----------------------------------------------------------------------------
+# 4. 화면 4: 최종 결과 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "result":
+    render_top_bar()
+
+    st.markdown(
+        "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div class='sub-title'>학습 카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>",
+        unsafe_allow_html=True,
+    )
+
+    completed_cnt = len(st.session_state.history)
+    st.metric("완료된 문항 수", f"{completed_cnt} 문항")
+    st.divider()
+
+    for item in st.session_state.history:
+        item_success = item.get("is_success", False)
+        bg_color = "#E0F2F1" if item_success else "#FFEBEE"
+        border_color = "#00838F" if item_success else "#C62828"
+        status_label = "성공" if item_success else "실패"
+
+        with st.container():
+            st.markdown(
+                f"""
+                <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
+                    <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            r_col1, r_col2 = st.columns([1, 2])
+
+            with r_col1:
+                if "image" in item:
+                    st.image(item["image"], width=280)
+
+            with r_col2:
+                st.markdown(
+                    f"""
+                    <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
+                        <b>🔍 AI 분석 피드백:</b><br>
+                        {item.get('ai_response', '')}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            st.divider()
+
+    if st.button("🔄 다시 학습하기", key="btn_restart"):
+        st.session_state.page = "start"
+        st.session_state.category = None
+        st.session_state.history = []
+        st.rerun()
