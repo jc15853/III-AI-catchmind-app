@@ -414,3 +414,99 @@ elif st.session_state.page == "intermediate":
 
         st.markdown(
             f"""
+            <div class="result-text-big" style="background-color: #E0F2F1; padding: 20px; border-radius: 12px; margin-top: 10px; border-left: 6px solid #00838F;">
+                • 목표 제시어: <span style="color: #00838F;"><b>{kw}</b></span><br><br>
+                • <b>AI 분석 결과:</b><br>
+                <span style="font-size: 1.1rem; color: #333333; font-weight: normal;">{ai_res}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.write("")
+        st.write("")
+
+        if st.session_state.solved_count >= st.session_state.total_target_questions:
+            if st.button("📊 최종 추상화 학습 결과 보기"):
+                st.session_state.page = "result"
+                st.rerun()
+        else:
+            if not is_success:
+                b_col1, b_col2 = st.columns(2)
+                with b_col1:
+                    if st.button("🔄 다시 시도하기"):
+                        st.session_state.history.pop()
+                        st.session_state.solved_count -= 1
+                        st.session_state.current_pool_idx -= 1
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+                with b_col2:
+                    if st.button("➡️ 다음 문제 풀기"):
+                        st.session_state.start_time = time.time()
+                        st.session_state.page = "game"
+                        st.rerun()
+            else:
+                if st.button("➡️ 다음 문제 풀기"):
+                    st.session_state.start_time = time.time()
+                    st.session_state.page = "game"
+                    st.rerun()
+
+# -----------------------------------------------------------------------------
+# 4. 화면 4: 최종 결과 화면
+# -----------------------------------------------------------------------------
+elif st.session_state.page == "result":
+    render_top_bar()
+
+    st.markdown(
+        "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div class='sub-title'>학습 카테고리: <b>{st.session_state.category}</b> | 패스 사용: <b>{st.session_state.pass_count}회</b></div>",
+        unsafe_allow_html=True,
+    )
+
+    completed_cnt = len(st.session_state.history)
+    st.metric("완료된 문항 수", f"{completed_cnt} 문항")
+    st.divider()
+
+    for item in st.session_state.history:
+        item_success = item.get("is_success", False)
+        bg_color = "#E0F2F1" if item_success else "#FFEBEE"
+        border_color = "#00838F" if item_success else "#C62828"
+        status_label = "성공" if item_success else "실패"
+
+        with st.container():
+            st.markdown(
+                f"""
+                <div style='background-color: {bg_color}; padding: 12px 20px; border-radius: 12px; border-left: 8px solid {border_color}; margin-bottom: 10px;'>
+                    <h4>🧩 문제 {item.get('round', 1)} - 제시어: [{item.get('keyword', '')}] ({status_label})</h4>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            r_col1, r_col2 = st.columns([1, 2])
+
+            with r_col1:
+                if "image" in item:
+                    st.image(item["image"], width=280)
+
+            with r_col2:
+                st.markdown(
+                    f"""
+                    <div class="result-text-big" style="font-size: 1.1rem !important; font-weight: normal;">
+                        <b>🔍 AI 분석 피드백:</b><br>
+                        {item.get('ai_response', '')}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            st.divider()
+
+    if st.button("🔄 다시 학습하기", key="btn_restart"):
+        st.session_state.page = "start"
+        st.session_state.category = None
+        st.session_state.history = []
+        st.rerun()
