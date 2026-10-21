@@ -149,48 +149,66 @@ def ask_gemini_vision(pil_image, keyword, category):
 
     try:
         from google import genai
+        from google.genai import types
+        import io
 
         client = genai.Client(api_key=api_key.strip())
         prompt = (
-            "당신은 정보 교과(컴퓨팅 사고력)의 추상화 개념을 평가하는 AI 심사위원입니다.\n"
-            "추상화란 불필요한 것을 없애고 문제 해결에 필요한 핵심 요소만 표현하는 것입니다.\n"
-            f"카테고리: {category}\n"
-            f"목표 제시어: {keyword}\n"
-            "첨부된 이미지를 실제로 확인하고 평가하세요. 이미지가 완전히 비어 있을 때만 빈 그림이라고 판단하세요.\n"
-            "제시어를 알아볼 수 있는 핵심 특징이 표현되었는지 평가하세요.\n"
-            "반드시 아래 형식으로 답하세요.\n"
-            "판정: 성공 또는 실패\n"
+            "당신은 정보 교과(컴퓨팅 사고력)의 추상화 개념을 평가하는 AI 심사위원입니다.\\n"
+            "추상화란 불필요한 것을 없애고 문제 해결에 필요한 핵심 요소만 표현하는 것입니다.\\n"
+            f"카테고리: {category}\\n"
+            f"목표 제시어: {keyword}\\n"
+            "첨부된 이미지를 실제로 확인하고 평가하세요. 이미지가 완전히 비어 있을 때만 빈 그림이라고 판단하세요.\\n"
+            "제시어를 알아볼 수 있는 핵심 특징이 표현되었는지 평가하세요.\\n"
+            "반드시 아래 형식으로 답하세요.\\n"
+            "판정: 성공 또는 실패\\n"
             "설명: 핵심 내용 위주로 한두 문장"
         )
-
-        # 이미지 객체를 PNG 바이트로 변환해 Gemini에 명확히 전달
-        import io
 
         image_buffer = io.BytesIO()
         pil_image.convert("RGB").save(image_buffer, format="PNG")
         image_bytes = image_buffer.getvalue()
 
-        from google.genai import types
+        # 일시적인 서버 혼잡이나 요청 제한에 대비해 최대 3회 시도
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=[
+                        prompt,
+                        types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
+                    ],
+                )
+                response_text = getattr(response, "text", None)
+                if not response_text:
+                    return False, "Gemini에서 텍스트 응답을 받지 못했습니다."
+                answer = response_text.strip()
+                first_line = answer.splitlines()[0].strip()
+                is_success = (
+                    first_line.startswith("판정:")
+                    and "성공" in first_line
+                    and "실패" not in first_line
+                )
+                return is_success, answer
 
-        response = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=[
-                prompt,
-                types.Part.from_bytes(
-                    data=image_bytes,
-                    mime_type="image/png",
-                ),
-            ],
-        )
-
-        response_text = getattr(response, "text", None)
-        if not response_text:
-            return False, "Gemini에서 텍스트 응답을 받지 못했습니다."
-
-        answer = response_text.strip()
-        first_line = answer.splitlines()[0].strip()
-        is_success = first_line.startswith("판정:") and "성공" in first_line and "실패" not in first_line
-        return is_success, answer
+            except Exception as exc:
+                error_text = str(exc)
+                temporary_error = (
+                    "503" in error_text
+                    or "UNAVAILABLE" in error_text
+                    or "429" in error_text
+                    or "RESOURCE_EXHAUSTED" in error_text
+                )
+                if temporary_error and attempt < 2:
+                    time.sleep(2 ** (attempt + 1))
+                    continue
+                if temporary_error:
+                    return False, (
+                        "Gemini 서버가 혼잡하거나 요청 한도에 도달해 분석하지 못했습니다. "
+                        "잠시 후 같은 그림으로 다시 제출해 주세요.\\n"
+                        f"상세 오류: {error_text}"
+                    )
+                return False, f"Gemini API 오류: {error_text}"
 
     except Exception as exc:
         return False, f"Gemini API 오류: {exc}"
@@ -330,10 +348,6 @@ elif st.session_state.page == "game":
     if clear_state_key not in st.session_state:
         st.session_state[clear_state_key] = 0
 
-    if st.button("🧹 전체 지우기", key=f"clear_btn_{pool_idx}"):
-        st.session_state[clear_state_key] += 1
-        st.rerun()
-
     canvas_result = st_canvas(
         fill_color="rgba(255, 255, 255, 0)",
         stroke_width=stroke_width,
@@ -363,8 +377,14 @@ elif st.session_state.page == "game":
                 np.asarray(canvas_result.image_data).astype("uint8")
             ).convert("RGB")
 
-            with st.spinner("🔍 AI가 추상화 결과를 분석 중입니다..."):
+            with st.spinner("🔍 AI가 그림의 핵심 특징을 분석 중입니다. 잠시만 기다려 주세요..."):
                 is_success, ai_answer = ask_gemini_vision(pil_img, keyword, category)
+
+            # API 통신 실패는 게임 결과로 처리하지 않습니다. 현재 문제에서 다시 제출할 수 있습니다.
+            if ai_answer.startswith(("Gemini 서버가", "Gemini API 오류:", "API 키 설정")):
+                st.error(ai_answer)
+                st.info("그림은 그대로 유지됩니다. 잠시 후 같은 그림으로 다시 제출해 주세요.")
+                st.stop()
 
             result_data = {
                 "round": solved_q + 1,
