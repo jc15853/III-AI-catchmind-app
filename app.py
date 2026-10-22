@@ -383,9 +383,8 @@ elif st.session_state.page == "game":
 
     with btn_col2:
         if st.button(
-            f"⏩ 패스하기 ({pass_used}/2회 사용)",
+            f"⏩ 패스하기 ({pass_used}/5회 사용)",
             key=f"btn_pass_{pool_idx}",
-            disabled=pass_used >= 2,
             use_container_width=True,
         ):
             st.session_state.pass_count += 1
