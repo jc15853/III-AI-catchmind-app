@@ -12,7 +12,7 @@ from streamlit_drawable_canvas import st_canvas
 # 0. 페이지 설정 및 CSS
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="정보 교과: 추상화 게임",
+    page_title="정보: 추상화 게임",
     page_icon="🧩",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -74,7 +74,7 @@ for key, value in DEFAULTS.items():
 def render_top_bar():
     c1, c2 = st.columns([6, 1])
     with c1:
-        st.markdown("#### 🧩 AI 추상화 핵심 특징 추출 챌린지")
+        st.markdown("#### 🧩 추상화 게임")
     with c2:
         if st.button("🏠 처음으로", key="top_home_btn"):
             for key, value in DEFAULTS.items():
@@ -154,7 +154,7 @@ def ask_gemini_vision(pil_image, keyword, category):
 
         client = genai.Client(api_key=api_key.strip())
         prompt = (
-            "당신은 정보 교과(컴퓨팅 사고력)의 추상화 개념을 평가하는 AI 심사위원입니다.\\n"
+            "당신은 정보 교과의 추상화 개념을 평가하는 AI 심사위원입니다.\\n"
             "추상화란 불필요한 것을 없애고 문제 해결에 필요한 핵심 요소만 표현하는 것입니다.\\n"
             f"카테고리: {category}\\n"
             f"목표 제시어: {keyword}\\n"
@@ -228,18 +228,15 @@ def image_has_drawing(image_data):
 # 4. 시작 화면
 # -----------------------------------------------------------------------------
 if st.session_state.page == "start":
-    st.title("🧩 AI 추상화 핵심 특징 추출 챌린지")
+    st.title("🧩 추상화 게임")
     st.caption(
-        "중1 정보 [2. 문제해결과 프로그래밍] - "
         "복잡한 대상에서 핵심 특징만 추출하는 컴퓨팅 사고력 학습기"
     )
 
-    with st.expander("📖 교육과정 학습 목표 및 정의 안내", expanded=True):
+    with st.expander("💡 추상화: 불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것", expanded=True):
         st.markdown(
             """
-            🤖 **정보 교과 [문제해결과 프로그래밍 - 추상화]**
-
-            💡 **추상화:** 불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것
+            **제시어의 핵심 특징을 추출하여 제한 시간 내에 그림을 완성하세요!**
             """
         )
 
