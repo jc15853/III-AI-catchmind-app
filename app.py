@@ -230,15 +230,8 @@ def image_has_drawing(image_data):
 if st.session_state.page == "start":
     st.title("🧩 추상화 게임")
     st.caption(
-        "복잡한 대상에서 핵심 특징만 추출하는 컴퓨팅 사고력 학습기"
+        "💡 추상화: 불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것"
     )
-
-    with st.expander("💡 추상화: 불필요한 것을 없애고, 문제 해결에 반드시 필요한 요소만을 뽑아 문제 해결 방법을 찾는 것", expanded=True):
-        st.markdown(
-            """
-            **제시어의 핵심 특징을 추출하여 제한 시간 내에 그림을 완성하세요!**
-            """
-        )
 
     df_keywords, csv_error = load_keywords()
     if csv_error:
