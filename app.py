@@ -297,11 +297,11 @@ elif st.session_state.page == "game":
 
     col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
-        st.markdown(f"#### 추상화 문제 **{solved_q + 1} / {5}**")
+        st.markdown(f"#### 문제 **{solved_q + 1} / {5}**")
     with col2:
         st.markdown(
             f"<h3 style='text-align:center;color:#00838F;'>"
-            f"추상화 대상(제시어): <b>[ {keyword} ]</b></h3>",
+            f"제시어: <b>{keyword}</b></h3>",
             unsafe_allow_html=True,
         )
     with col3:
@@ -312,7 +312,7 @@ elif st.session_state.page == "game":
             unsafe_allow_html=True,
         )
 
-    st.info("아래 그림판에 마우스나 터치로 그림을 그린 후 [제출하기]를 눌러주세요!")
+    st.info("아래 그림판에 마우스나 터치로 그림을 그린 후 [제출하기] 버튼을 눌러주세요!")
 
     draw_col1, draw_col2 = st.columns([1, 2])
     with draw_col1:
@@ -416,18 +416,18 @@ elif st.session_state.page == "intermediate":
     ai_res = res.get("ai_response", "")
     is_success = res.get("is_success", False)
 
-    st.markdown(f"### 📋 [문제 {round_num}] 추상화 분석 결과")
+    st.markdown(f"### 📋 [문제 {round_num}] 분석 결과")
 
-    col_img, col_info = st.columns([1, 1.2])
+    col_img, col_info = st.columns([1, 1])
     with col_img:
         if img is not None:
-            st.image(img, caption="내가 표현한 그림", width=320)
+            st.image(img, caption="내가 표현한 그림", width=500)
 
     with col_info:
         if is_success:
-            st.success("✨ 핵심 특징 추출(추상화) 성공!")
+            st.success("✨ 추상화 성공!")
         else:
-            st.error("⚠️ 핵심 특징 추출 실패 (다시 도전해 보세요!)")
+            st.error("⚠️ 추상화 실패! 다시 도전해 보세요.")
 
         st.markdown(
             f"""
@@ -441,7 +441,7 @@ elif st.session_state.page == "intermediate":
         )
 
     if st.session_state.solved_count >= st.session_state.total_target_questions:
-        if st.button("📊 최종 추상화 학습 결과 보기"):
+        if st.button("📊 최종 결과 보기"):
             st.session_state.page = "result"
             st.rerun()
     else:
