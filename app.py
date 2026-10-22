@@ -298,11 +298,10 @@ elif st.session_state.page == "game":
     col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
         st.markdown(f"#### 추상화 문제 **{solved_q + 1} / {5}**")
-        st.caption(f"패스 찬스: {2 - pass_used}회 남음")
     with col2:
         st.markdown(
             f"<h3 style='text-align:center;color:#00838F;'>"
-            f"추상화 대상(제시어): <b>[{keyword}]</b></h3>",
+            f"추상화 대상(제시어): <b>[ {keyword} ]</b></h3>",
             unsafe_allow_html=True,
         )
     with col3:
@@ -313,7 +312,7 @@ elif st.session_state.page == "game":
             unsafe_allow_html=True,
         )
 
-    st.info("아래 그림판에 마우스나 터치로 그림을 그린 후 **[제출하기]**를 눌러주세요!")
+    st.info("아래 그림판에 마우스나 터치로 그림을 그린 후 [제출하기]를 눌러주세요!")
 
     draw_col1, draw_col2 = st.columns([1, 2])
     with draw_col1:
