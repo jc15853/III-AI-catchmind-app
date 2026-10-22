@@ -238,16 +238,7 @@ if st.session_state.page == "start":
         st.error(csv_error)
         st.stop()
 
-    st.write("### 1. 문제 수 입력")
-    target_q = st.number_input(
-        "풀고 싶은 문제 수를 입력하세요 (1~20):",
-        min_value=1,
-        max_value=20,
-        value=5,
-        step=1,
-    )
-
-    st.write("### 2. 카테고리 선택")
+    st.write("### 카테고리 선택")
     categories = ["동물", "과일", "채소", "사물", "교통수단"]
     cols = st.columns(5)
 
@@ -259,7 +250,7 @@ if st.session_state.page == "start":
                     .drop_duplicates()
                     .tolist()
                 )
-                required_count = int(target_q)
+                required_count = 5
 
                 if len(filtered) < required_count:
                     st.error(
@@ -306,7 +297,7 @@ elif st.session_state.page == "game":
 
     col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
-        st.markdown(f"#### 추상화 문제 **{solved_q + 1} / {target_q}**")
+        st.markdown(f"#### 추상화 문제 **{solved_q + 1} / {5}**")
         st.caption(f"패스 찬스: {2 - pass_used}회 남음")
     with col2:
         st.markdown(
