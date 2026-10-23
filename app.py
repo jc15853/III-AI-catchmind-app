@@ -319,10 +319,10 @@ elif st.session_state.page == "game":
         stroke_color = st.color_picker(
             "펜 색상", "#000000", key=f"stroke_color_{pool_idx}"
         )
-    with draw_col2:
+    /*with draw_col2:
         stroke_width = st.slider(
             "선 두께", 2, 25, 6, key=f"stroke_width_{pool_idx}"
-        )
+        )*/
 
     clear_state_key = f"clear_canvas_{pool_idx}"
     if clear_state_key not in st.session_state:
