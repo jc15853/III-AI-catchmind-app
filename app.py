@@ -311,7 +311,7 @@ elif st.session_state.page == "game":
                 </div>
                 """,
                 unsafe_allow_html=True,
-        )
+            )
     with col3:
         timer_color = "red" if remaining_time <= 10 else "#333333"
         st.markdown(
