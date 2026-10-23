@@ -314,33 +314,12 @@ elif st.session_state.page == "game":
 
     st.info("아래 그림판에 마우스나 터치로 그림을 그린 후 [제출하기] 버튼을 눌러주세요!")
 
-    draw_col1, draw_col2 = st.columns([1, 2])
+    draw_col1, draw_col2 = st.columns([1, 1])
     with draw_col1:
-        colors = ["#000000", "#FF0000", "#0000FF", "#008000", "#FFD700"]
-        cols = st.columns(5)
-
-        if "stroke_color" not in st.session_state:
-            st.session_state.stroke_color = "#000000"
-
-        for i, color in enumerate(colors):
-            with cols[i]:
-                st.markdown(
-                    f"""<style>
-                    div.st-key-color_{pool_idx}_{i} button {{
-                        background-color: {color};
-                        height: 40px;
-                        width: 100%;
-                        border: 2px solid #888;
-                        padding: 0;
-                    }}
-                    </style>""",
-                    unsafe_allow_html=True,
-                )
-                if st.button(" ", key=f"color_{pool_idx}_{i}", use_container_width=True):
-                    st.session_state.stroke_color = color
-                    st.rerun()
-
-        stroke_color = st.session_state.stroke_color
+        stroke_color = st.color_picker(
+            "펜 색상", "#000000", key=f"stroke_color_{pool_idx}"
+        )
+        
     with draw_col2:
         stroke_width = st.slider(
             "선 두께", 2, 25, 6, key=f"stroke_width_{pool_idx}"
