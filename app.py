@@ -316,15 +316,15 @@ elif st.session_state.page == "game":
 
     draw_col1, draw_col2 = st.columns([1, 2])
     with draw_col1:
-    colors = ["#000000", "#FF0000", "#0000FF", "#008000", "#FFD700"]
-    cols = st.columns(5)
+        colors = ["#000000", "#FF0000", "#0000FF", "#008000", "#FFD700"]
+        cols = st.columns(5)
 
-    for i, color in enumerate(colors):
-        with cols[i]:
-            if st.button("●", key=f"color_{pool_idx}_{i}"):
-                st.session_state.stroke_color = color
-
-    stroke_color = st.session_state.get("stroke_color", "#000000")
+        for i, color in enumerate(colors):
+            with cols[i]:
+                if st.button("●", key=f"color_{pool_idx}_{i}"):
+                    st.session_state.stroke_color = color
+        
+        stroke_color = st.session_state.get("stroke_color", "#000000")
     with draw_col2:
         stroke_width = st.slider(
             "선 두께", 2, 25, 6, key=f"stroke_width_{pool_idx}"
