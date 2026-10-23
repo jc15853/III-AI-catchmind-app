@@ -314,7 +314,7 @@ elif st.session_state.page == "game":
 
     st.info("아래 그림판에 마우스나 터치로 그림을 그린 후 [제출하기] 버튼을 눌러주세요!")
 
-    draw_col1, draw_col2 = st.columns([1, 1], gap="small")
+    draw_col1, draw_col2 = st.columns([1, 4])
     with draw_col1:
         stroke_color = st.color_picker(
             "펜 색상", "#000000", key=f"stroke_color_{pool_idx}"
