@@ -72,7 +72,7 @@ for key, value in DEFAULTS.items():
 
 
 def render_top_bar():
-    c1, c2 = st.columns([6, 1])
+    c1, c2 = st.columns([1, 15])
     with c1:
         st.markdown("#### 🧩 추상화 게임")
     with c2:
