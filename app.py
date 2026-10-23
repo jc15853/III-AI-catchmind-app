@@ -316,13 +316,31 @@ elif st.session_state.page == "game":
 
     draw_col1, draw_col2 = st.columns([1, 2])
     with draw_col1:
-        stroke_color = st.color_picker(
-            "펜 색상", "#000000", key=f"stroke_color_{pool_idx}"
-        )
-    /*with draw_col2:
+    color_options = {
+        "⚫ 검정": "#000000",
+        "🔴 빨강": "#FF0000",
+        "🔵 파랑": "#0000FF",
+        "🟢 초록": "#008000",
+        "🟡 노랑": "#FFD700",
+        "🟠 주황": "#FF8C00",
+        "🟣 보라": "#800080",
+        "🩷 분홍": "#FF69B4",
+        "🟤 갈색": "#8B4513",
+        "⚪ 회색": "#808080",
+        "⚪ 흰색": "#FFFFFF",
+    }
+
+    selected_color = st.selectbox(
+        "펜 색상",
+        options=list(color_options.keys()),
+        key=f"stroke_color_{pool_idx}",
+    )
+
+    stroke_color = color_options[selected_color]
+    with draw_col2:
         stroke_width = st.slider(
             "선 두께", 2, 25, 6, key=f"stroke_width_{pool_idx}"
-        )*/
+        )
 
     clear_state_key = f"clear_canvas_{pool_idx}"
     if clear_state_key not in st.session_state:
