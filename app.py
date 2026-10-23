@@ -329,7 +329,7 @@ elif st.session_state.page == "game":
     if clear_state_key not in st.session_state:
         st.session_state[clear_state_key] = 0
 
-    canvas_col, button_col = st.columns([5, 1])
+    canvas_col, button_col = st.columns([5,4])
     with canvas_col:
             canvas_result = st_canvas(
                 fill_color="rgba(255, 255, 255, 0)",
