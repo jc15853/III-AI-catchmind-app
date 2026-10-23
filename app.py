@@ -316,7 +316,7 @@ elif st.session_state.page == "game":
 
     draw_col1, draw_col2 = st.columns([1, 2])
     with draw_col1:
-         colors = ["#000000", "#FF0000", "#0000FF", "#008000", "#FFD700"]
+        colors = ["#000000", "#FF0000", "#0000FF", "#008000", "#FFD700"]
         cols = st.columns(5)
 
         if "stroke_color" not in st.session_state:
