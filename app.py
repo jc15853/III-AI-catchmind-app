@@ -316,27 +316,15 @@ elif st.session_state.page == "game":
 
     draw_col1, draw_col2 = st.columns([1, 2])
     with draw_col1:
-    color_options = {
-        "⚫ 검정": "#000000",
-        "🔴 빨강": "#FF0000",
-        "🔵 파랑": "#0000FF",
-        "🟢 초록": "#008000",
-        "🟡 노랑": "#FFD700",
-        "🟠 주황": "#FF8C00",
-        "🟣 보라": "#800080",
-        "🩷 분홍": "#FF69B4",
-        "🟤 갈색": "#8B4513",
-        "⚪ 회색": "#808080",
-        "⚪ 흰색": "#FFFFFF",
-    }
+    colors = ["#000000", "#FF0000", "#0000FF", "#008000", "#FFD700"]
+    cols = st.columns(5)
 
-    selected_color = st.selectbox(
-        "펜 색상",
-        options=list(color_options.keys()),
-        key=f"stroke_color_{pool_idx}",
-    )
+    for i, color in enumerate(colors):
+        with cols[i]:
+            if st.button("●", key=f"color_{pool_idx}_{i}"):
+                st.session_state.stroke_color = color
 
-    stroke_color = color_options[selected_color]
+    stroke_color = st.session_state.get("stroke_color", "#000000")
     with draw_col2:
         stroke_width = st.slider(
             "선 두께", 2, 25, 6, key=f"stroke_width_{pool_idx}"
