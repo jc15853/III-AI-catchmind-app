@@ -299,10 +299,18 @@ elif st.session_state.page == "game":
     with col1:
         st.markdown(f"#### 문제 **{solved_q + 1} / {5}**")
     with col2:
+        #st.markdown(
+        #    f"<h3 style='text-align:center;color:#00838F;'>"
+        #    f"제시어: <b>{keyword}</b></h3>",
+        #    unsafe_allow_html=True,
+        #)
         st.markdown(
-            f"<h3 style='text-align:center;color:#00838F;'>"
-            f"제시어: <b>{keyword}</b></h3>",
-            unsafe_allow_html=True,
+                f"""
+                <div style="background-color:{bg_color};padding:12px 20px;border-radius:12px;border-left:8px solid {border_color};margin-bottom:10px;">
+                    <h4>제시어: <b>{keyword}</b></h4>
+                </div>
+                """,
+                unsafe_allow_html=True,
         )
     with col3:
         timer_color = "red" if remaining_time <= 10 else "#333333"
@@ -427,7 +435,7 @@ elif st.session_state.page == "intermediate":
 
     st.markdown(f"### 📋 [문제 {round_num}] 분석 결과")
 
-    col_img, col_info = st.columns([1, 1])
+    col_img, col_info = st.columns([1, 2])
     with col_img:
         if img is not None:
             st.image(img, caption="내가 표현한 그림", width=500)
@@ -487,7 +495,7 @@ elif st.session_state.page == "result":
     render_top_bar()
 
     st.markdown(
-        "<div class='big-title'>📊 컴퓨팅 사고력 학습 결과 (추상화)</div>",
+        "<div class='big-title'>📊 최종 결과</div>",
         unsafe_allow_html=True,
     )
     st.markdown(
