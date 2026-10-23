@@ -329,44 +329,49 @@ elif st.session_state.page == "game":
     if clear_state_key not in st.session_state:
         st.session_state[clear_state_key] = 0
 
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)",
-        stroke_width=stroke_width,
-        stroke_color=stroke_color,
-        background_color="#FFFFFF",
-        height=380,
-        width=850,
-        drawing_mode="freedraw",
-        update_streamlit=True,
-        key=f"canvas_{pool_idx}_{st.session_state[clear_state_key]}",
-    )
-
-    st.write("")
-    btn_col1, btn_col2 = st.columns(2)
-
-    with btn_col1:
+    canvas_col, button_col = st.columns([5, 1])
+    with canvas_col:
+            canvas_result = st_canvas(
+                fill_color="rgba(255, 255, 255, 0)",
+                stroke_width=stroke_width,
+                stroke_color=stroke_color,
+                background_color="#FFFFFF",
+                height=380,
+                width=850,
+                drawing_mode="freedraw",
+                update_streamlit=True,
+                key=f"canvas_{pool_idx}_{st.session_state[clear_state_key]}",
+            )
+    
+    with button_col:
+        st.write("")
+        st.write("")
+    
         if st.button(
-            "🧩 추상화 결과 제출하기",
+            "🧩 결과 제출",
             key=f"btn_submit_{pool_idx}",
             use_container_width=True,
         ):
             if not image_has_drawing(canvas_result.image_data):
-                st.warning("그림이 감지되지 않았어요. 그림을 그린 후 다시 제출해 주세요.")
+                st.warning("그림을 먼저 그려 주세요.")
                 st.stop()
-
+    
             pil_img = Image.fromarray(
                 np.asarray(canvas_result.image_data).astype("uint8")
             ).convert("RGB")
-
-            with st.spinner("🔍 AI가 그림의 핵심 특징을 분석 중입니다. 잠시만 기다려 주세요..."):
-                is_success, ai_answer = ask_gemini_vision(pil_img, keyword, category)
-
-            # API 통신 실패는 게임 결과로 처리하지 않습니다. 현재 문제에서 다시 제출할 수 있습니다.
-            if ai_answer.startswith(("Gemini 서버가", "Gemini API 오류:", "API 키 설정")):
+    
+            with st.spinner("🔍 AI가 그림을 분석 중입니다..."):
+                is_success, ai_answer = ask_gemini_vision(
+                    pil_img, keyword, category
+                )
+    
+            if ai_answer.startswith(
+                ("Gemini 서버가", "Gemini API 오류:", "API 키 설정")
+            ):
                 st.error(ai_answer)
-                st.info("그림은 그대로 유지됩니다. 잠시 후 같은 그림으로 다시 제출해 주세요.")
+                st.info("그림은 유지됩니다. 다시 제출해 주세요.")
                 st.stop()
-
+    
             result_data = {
                 "round": solved_q + 1,
                 "keyword": keyword,
@@ -374,25 +379,29 @@ elif st.session_state.page == "game":
                 "ai_response": ai_answer,
                 "is_success": is_success,
             }
-
+    
             st.session_state.history.append(result_data)
             st.session_state.last_result = result_data
             st.session_state.solved_count += 1
             st.session_state.current_pool_idx += 1
             st.session_state.page = "intermediate"
             st.rerun()
-
-    with btn_col2:
+    
         if st.button(
-            f"⏩ 패스하기 ({pass_used}/5회 사용)",
+            f"⏩ 패스 ({pass_used}/5)",
             key=f"btn_pass_{pool_idx}",
             use_container_width=True,
         ):
             st.session_state.pass_count += 1
             st.session_state.current_pool_idx += 1
             st.session_state.start_time = time.time()
-            if st.session_state.current_pool_idx >= len(st.session_state.quiz_pool):
+    
+            if (
+                st.session_state.current_pool_idx
+                >= len(st.session_state.quiz_pool)
+            ):
                 st.session_state.page = "result"
+    
             st.rerun()
 
     if is_time_over:
