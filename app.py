@@ -403,6 +403,7 @@ elif st.session_state.page == "game":
             key=f"btn_pass_{pool_idx}",
             use_container_width=True,
         ):
+            "round": solved_q + 1
             st.session_state.pass_count += 1
             st.session_state.current_pool_idx += 1
             #st.session_state.start_time = time.time()
@@ -447,7 +448,7 @@ elif st.session_state.page == "intermediate":
         if is_success:
             st.success("✨ 추상화 성공!")
         else:
-            st.error("⚠️ 추상화 실패! 다시 도전해 보세요.")
+            st.error("⚠️ 추상화 실패!")
 
         st.markdown(
             f"""
@@ -465,20 +466,20 @@ elif st.session_state.page == "intermediate":
             st.session_state.page = "result"
             st.rerun()
     else:
-        b_col1, b_col2 = st.columns(2)
-        with b_col1:
-            if not is_success:
-                if st.button("🔄 다시 시도하기"):
-                    if st.session_state.history:
-                        st.session_state.history.pop()
-                    st.session_state.solved_count = max(0, st.session_state.solved_count - 1)
-                    st.session_state.current_pool_idx = max(
-                        0, st.session_state.current_pool_idx - 1
-                    )
-                    st.session_state.start_time = time.time()
-                    st.session_state.last_result = None
-                    st.session_state.page = "game"
-                    st.rerun()
+        #b_col1, b_col2 = st.columns(2)
+        #with b_col1:
+        #    if not is_success:
+        #        if st.button("🔄 다시 시도하기"):
+        #            if st.session_state.history:
+        #                st.session_state.history.pop()
+        #            st.session_state.solved_count = max(0, st.session_state.solved_count - 1)
+        #            st.session_state.current_pool_idx = max(
+        #                0, st.session_state.current_pool_idx - 1
+        #            )
+        #            st.session_state.start_time = time.time()
+        #            st.session_state.last_result = None
+        #            st.session_state.page = "game"
+        #            st.rerun()
 
         with b_col2:
             if st.button("➡️ 다음 문제 풀기"):
@@ -536,7 +537,7 @@ elif st.session_state.page == "result":
                 st.write(item.get("ai_response", ""))
             st.divider()
 
-    if st.button("🔄 다시 학습하기", key="btn_restart"):
+    if st.button("🔄 다시 도전하기", key="btn_restart"):
         for key, value in DEFAULTS.items():
             st.session_state[key] = value
         st.rerun()
