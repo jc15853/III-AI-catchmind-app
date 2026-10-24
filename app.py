@@ -288,14 +288,15 @@ elif st.session_state.page == "game":
     solved_q = st.session_state.solved_count
     pass_used = st.session_state.pass_count
 
-    if st.session_state.start_time is None:
-        st.session_state.start_time = time.time()
+    #if st.session_state.start_time is None:
+    #    st.session_state.start_time = time.time()
 
-    elapsed_time = time.time() - st.session_state.start_time
-    remaining_time = max(0, int(60 - elapsed_time))
-    is_time_over = remaining_time == 0
+    #elapsed_time = time.time() - st.session_state.start_time
+    #remaining_time = max(0, int(60 - elapsed_time))
+    #is_time_over = remaining_time == 0
 
-    col1, col2, col3 = st.columns([1.2, 2, 1.2])
+    col1, col2 = st.columns([1, 10])
+    #col1, col2, col3 = st.columns([1.2, 2, 1.2])
     with col1:
         st.markdown(f"#### 문제 **{solved_q + 1} / {5}**")
     with col2:
@@ -314,13 +315,13 @@ elif st.session_state.page == "game":
                 """,
                 unsafe_allow_html=True,
         )
-    with col3:
-        timer_color = "red" if remaining_time <= 10 else "#333333"
-        st.markdown(
-            f"<h4 style='text-align:right;color:{timer_color};'>"
-            f"⏱️ 남은 시간: {remaining_time}초</h4>",
-            unsafe_allow_html=True,
-        )
+    #with col3:
+    #    timer_color = "red" if remaining_time <= 10 else "#333333"
+    #    st.markdown(
+    #        f"<h4 style='text-align:right;color:{timer_color};'>"
+    #        f"⏱️ 남은 시간: {remaining_time}초</h4>",
+    #        unsafe_allow_html=True,
+    #    )
 
     st.info("아래 그림판에 마우스나 터치로 그림을 그린 후 [제출하기] 버튼을 눌러주세요!")
 
@@ -404,7 +405,7 @@ elif st.session_state.page == "game":
         ):
             st.session_state.pass_count += 1
             st.session_state.current_pool_idx += 1
-            st.session_state.start_time = time.time()
+            #st.session_state.start_time = time.time()
     
             if (
                 st.session_state.current_pool_idx
@@ -414,8 +415,8 @@ elif st.session_state.page == "game":
     
             st.rerun()
 
-    if is_time_over:
-        st.error("⏰ 제한 시간이 초과되었습니다! 그림을 제출하거나 패스해 주세요.")
+    #if is_time_over:
+    #    st.error("⏰ 제한 시간이 초과되었습니다! 그림을 제출하거나 패스해 주세요.")
 
 
 # -----------------------------------------------------------------------------
