@@ -286,7 +286,6 @@ elif st.session_state.page == "game":
     category = st.session_state.category
     target_q = st.session_state.total_target_questions
     solved_q = st.session_state.solved_count
-    pass_used = st.session_state.pass_count
 
     #if st.session_state.start_time is None:
     #    st.session_state.start_time = time.time()
@@ -387,7 +386,7 @@ elif st.session_state.page == "game":
             st.rerun()
     
         if st.button(
-            f"⏩ 패스 ({pass_used}/5)",
+            f"⏩ 패스",
             key=f"btn_pass_{pool_idx}",
             use_container_width=True,
         ):
