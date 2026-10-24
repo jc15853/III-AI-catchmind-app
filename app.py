@@ -391,7 +391,7 @@ elif st.session_state.page == "game":
             key=f"btn_pass_{pool_idx}",
             use_container_width=True,
         ):
-            solved_q += 1
+            st.session_state.solved_count += 1
             st.session_state.pass_count += 1
             st.session_state.current_pool_idx += 1
             #st.session_state.start_time = time.time()
