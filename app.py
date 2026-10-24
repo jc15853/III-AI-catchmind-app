@@ -304,7 +304,8 @@ elif st.session_state.page == "game":
         #    f"제시어: <b>{keyword}</b></h3>",
         #    unsafe_allow_html=True,
         #)
-        bg_color = "#00838F"
+        bg_color = "#E0F2F1"
+        border_color = "#00838F"
         st.markdown(
                 f"""
                 <div style="background-color:{bg_color};padding:12px 20px;border-radius:12px;border-left:8px solid {border_color};margin-bottom:10px;">
