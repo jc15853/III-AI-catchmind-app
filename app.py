@@ -300,11 +300,6 @@ elif st.session_state.page == "game":
     with col1:
         st.markdown(f"#### 문제 **{solved_q + 1} / {5}**")
     with col2:
-        #st.markdown(
-        #    f"<h3 style='text-align:center;color:#00838F;'>"
-        #    f"제시어: <b>{keyword}</b></h3>",
-        #    unsafe_allow_html=True,
-        #)
         bg_color = "#E0F2F1"
         border_color = "#00838F"
         st.markdown(
@@ -315,13 +310,6 @@ elif st.session_state.page == "game":
                 """,
                 unsafe_allow_html=True,
         )
-    #with col3:
-    #    timer_color = "red" if remaining_time <= 10 else "#333333"
-    #    st.markdown(
-    #        f"<h4 style='text-align:right;color:{timer_color};'>"
-    #        f"⏱️ 남은 시간: {remaining_time}초</h4>",
-    #        unsafe_allow_html=True,
-    #    )
 
     st.info("아래 그림판에 마우스나 터치로 그림을 그린 후 [제출하기] 버튼을 눌러주세요!")
 
@@ -403,7 +391,7 @@ elif st.session_state.page == "game":
             key=f"btn_pass_{pool_idx}",
             use_container_width=True,
         ):
-            "round": solved_q + 1,
+            solved_q += 1
             st.session_state.pass_count += 1
             st.session_state.current_pool_idx += 1
             #st.session_state.start_time = time.time()
